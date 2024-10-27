@@ -18,6 +18,8 @@ class CustomTopo(Topo):
         # Initialize topology and default options
         Topo.__init__(self, **opts)
 
+        host_counter = 1
+
         # Core switch
         core = self.addSwitch('s1')
         # Aggregation switches
@@ -30,9 +32,11 @@ class CustomTopo(Topo):
                 self.addLink(edge, agg, **linkopts2)
                 # Hosts
                 for k in irange(1, fanout):
-                    host = self.addHost('h%s%s%s' % (i, j, k))
-                    self.addLink(host, edge, **linkopts3)
 
+                    # host = self.addHost('h%s%s%s' % (i, j, k))
+                    host = self.addHost('h%s' % host_counter)
+                    self.addLink(host, edge, **linkopts3)
+                    host_counter += 1
         
                     
 def perfTest():
