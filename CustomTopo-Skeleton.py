@@ -34,7 +34,7 @@ class CustomTopo(Topo):
                 for k in irange(1, fanout):
 
                     # host = self.addHost('h%s%s%s' % (i, j, k))
-                    host = self.addHost('h%s' % host_counter)
+                    host = self.addHost('h%s' % host_counter) # for perfTest code, we need to have host name as h1, h2, h3, etc
                     self.addLink(host, edge, **linkopts3)
                     host_counter += 1
         
