@@ -50,18 +50,16 @@ class Firewall(EventMixin):
         #Please add your code here
 
         for mac_0, mac_1 in self.blocked_pairs:
-            # Block traffic from mac_0 to mac_1
             msg = of.ofp_flow_mod()
             msg.match.dl_src = mac_0
             msg.match.dl_dst = mac_1
-            msg.actions = []  # Drop packet
+            msg.actions = []
             event.connection.send(msg)
 
-            # Block traffic from mac_1 to mac_0
             msg = of.ofp_flow_mod()
             msg.match.dl_src = mac_1
             msg.match.dl_dst = mac_0
-            msg.actions = []  # Drop packet
+            msg.actions = []
             event.connection.send(msg)
     
         log.debug("Installed rules in %s", dpidToStr(event.dpid))
