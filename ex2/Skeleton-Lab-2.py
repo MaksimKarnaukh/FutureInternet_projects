@@ -49,7 +49,7 @@ class Firewall(EventMixin):
 
         #Please add your code here
 
-        for mac_0, mac_1 in self.blocked_pairs:
+        for mac_0, mac_1 in self.blocked_mac_pairs:
             msg = of.ofp_flow_mod()
             msg.match.dl_src = mac_0
             msg.match.dl_dst = mac_1
