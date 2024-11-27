@@ -45,7 +45,7 @@ class Firewall(EventMixin):
         except Exception as e:
             log.error("Error loading firewall policies: %s", e)
 
-    def _handle_ConnectionUp (self, event):    
+    def _handle_ConnectionUp(self, event):
 
         #Please add your code here
 
