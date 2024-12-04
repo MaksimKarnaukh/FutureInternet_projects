@@ -29,6 +29,27 @@ class TopologySlice (EventMixin):
     def __init__(self):
         self.listenTo(core.openflow)
         log.debug("Enabling Slicing Module")
+
+
+    def add_flow_rule(self, connection, in_port, out_port, bidirectional=True):
+        """
+        Adds a flow rule to the switch.
+
+        :param connection: connection.
+        :param in_port: The incoming port to match traffic.
+        :param out_port: The outgoing port to forward traffic.
+        :param bidirectional: If True, a rule will be added in both directions.
+        """
+        msg = of.ofp_flow_mod()
+        msg.match.in_port = in_port
+        msg.actions.append(of.ofp_action_output(port=out_port))
+        connection.send(msg)
+
+        if bidirectional:
+            msg = of.ofp_flow_mod()
+            msg.match.in_port = out_port
+            msg.actions.append(of.ofp_action_output(port=in_port))
+            connection.send(msg)
         
         
     """This event will be raised each time a switch will connect to the controller"""
@@ -41,17 +62,27 @@ class TopologySlice (EventMixin):
         log.debug("Switch %s has come up.", dpid)
         
         """ Add your logic here """
-        
-        if dpid == '00-00-00-00-00-01':
-            
-            
-            
-        
-            
-            
-        
 
-        
+        if dpid == '00-00-00-00-00-01':
+            # High-Capacity Path: h1 <-> S1 <-> S2
+            self.add_flow_rule(event.connection, 3, 1)
+            # Low-Capacity Path: h2 <-> S1 <-> S4
+            self.add_flow_rule(event.connection, 4, 2)
+
+        elif dpid == '00-00-00-00-00-02':
+            # High-Capacity Path: S1 <-> S2 <-> S3
+            self.add_flow_rule(event.connection, 1, 2)
+
+        elif dpid == '00-00-00-00-00-03':
+            # High-Capacity Path: S2 <-> S3 <-> h3
+            self.add_flow_rule(event.connection, 1, 3)
+            # Low-Capacity Path: S4 <-> S3 <-> h4
+            self.add_flow_rule(event.connection, 2, 4)
+
+        elif dpid == '00-00-00-00-00-04':
+            # Low-Capacity Path: S1 <-> S4 <-> S3
+            self.add_flow_rule(event.connection, 1, 2)
+
 
 def launch():
     # Run spanning tree so that we can deal with topologies with loops
