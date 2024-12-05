@@ -72,27 +72,6 @@ class TopologySlice (EventMixin):
             self.add_flow_rule(event.connection, path[0], path[1])
 
 
-        # if dpid == '00-00-00-00-00-01':
-        #     # High-Capacity Path: h1 <-> S1 <-> S2
-        #     self.add_flow_rule(event.connection, 3, 1)
-        #     # Low-Capacity Path: h2 <-> S1 <-> S4
-        #     self.add_flow_rule(event.connection, 4, 2)
-        #
-        # elif dpid == '00-00-00-00-00-02':
-        #     # High-Capacity Path: S1 <-> S2 <-> S3
-        #     self.add_flow_rule(event.connection, 1, 2)
-        #
-        # elif dpid == '00-00-00-00-00-03':
-        #     # High-Capacity Path: S2 <-> S3 <-> h3
-        #     self.add_flow_rule(event.connection, 1, 3)
-        #     # Low-Capacity Path: S4 <-> S3 <-> h4
-        #     self.add_flow_rule(event.connection, 2, 4)
-        #
-        # elif dpid == '00-00-00-00-00-04':
-        #     # Low-Capacity Path: S1 <-> S4 <-> S3
-        #     self.add_flow_rule(event.connection, 1, 2)
-
-
 def launch():
     # Run spanning tree so that we can deal with topologies with loops
     pox.openflow.discovery.launch()
