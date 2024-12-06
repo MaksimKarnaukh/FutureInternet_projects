@@ -40,6 +40,19 @@ class CustomSlice (EventMixin):
                         
                         }
 
+		# self.portmap = {
+		# 	# Video Service (Port 200 -> Use only 100Mbps links)
+		# 	('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
+		# 	('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
+		# 	('00-00-00-00-00-03', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
+		# 	('00-00-00-00-00-04', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-07',
+		#
+		# 	# HTTP Service (Port 80 -> Use only 10Mbps links)
+		# 	('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
+		# 	('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
+		# 	('00-00-00-00-00-03', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
+		# }
+
 	def _handle_ConnectionUp(self, event):
 		dpid = dpidToStr(event.dpid)
 		log.debug("Switch %s has connected.", dpid)
@@ -86,24 +99,41 @@ class CustomSlice (EventMixin):
 
 		
 		def forward (message = None):
-            		this_dpid = dpid_to_str(event.dpid)
+			this_dpid = dpid_to_str(event.dpid)
 
-            		if packet.dst.is_multicast:
-                		flood()
-                	return
-           		else:
-                		log.debug("Got unicast packet for %s at %s (input port %d):",
-                          	packet.dst, dpid_to_str(event.dpid), event.port)
+			if packet.dst.is_multicast:
+				flood()
+				return
+			else:
+				log.debug("Got unicast packet for %s at %s (input port %d):",
+					packet.dst, dpid_to_str(event.dpid), event.port)
 
-                	try:
-                   		""" Add your logic here """"
-                    
+				try:
+					""" Add your logic here """
 
-                	except AttributeError:
-                    		log.debug("packet type has no transport ports, flooding")
+					if udpp and udpp.dstport == 200:  # Video Service
+						log.debug("Video traffic detected: %s -> %s", packet.src, packet.dst)
+						path_key = (this_dpid, packet.src, packet.dst, 200)
+					elif tcpp and tcpp.dstport == 80:  # HTTP Service
+						log.debug("HTTP traffic detected: %s -> %s", packet.src, packet.dst)
+						path_key = (this_dpid, packet.src, packet.dst, 80)
+					else:
+						flood()
+						return
 
-                    	# flood and install the flow table entry for the flood
-                    	install_fwdrule(event,packet,of.OFPP_FLOOD)
+					try:
+						next_hop_dpid = self.portmap[path_key]
+						outport = self.adjacency[this_dpid][next_hop_dpid]
+						log.debug("Forwarding to next hop: %s via port %d", next_hop_dpid, outport)
+						install_fwdrule(event, packet, outport)
+					except KeyError:
+						log.warning("No path found for %s -> %s", packet.src, packet.dst)
+						flood()
+
+				except AttributeError:
+					log.debug("packet type has no transport ports, flooding")
+					# flood and install the flow table entry for the flood
+					install_fwdrule(event,packet,of.OFPP_FLOOD)
 
 		forward()
 
