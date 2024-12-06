@@ -67,8 +67,6 @@ class CustomSlice (EventMixin):
 		self.adjacency[sw1][sw2] = l.port1
 		self.adjacency[sw2][sw1] = l.port2
 
-		
-
 	def _handle_PacketIn (self, event):
 		"""
 		Handle packet in messages from the switch to implement above algorithm.
