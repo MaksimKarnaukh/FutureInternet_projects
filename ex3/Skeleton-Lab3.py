@@ -32,6 +32,19 @@ class CustomSlice (EventMixin):
 		(dpid string, src MAC addr, dst MAC addr, port (int)) -> dpid of next switch
 		'''
 
+		def add_portmap_entry(src_dpid, src_mac, dst_mac, port, dst_dpid, bidirectional=True):
+			self.portmap[(src_dpid, src_mac, dst_mac, port)] = dst_dpid
+			if bidirectional:
+				self.portmap[(dst_dpid, dst_mac, src_mac, port)] = src_dpid
+
+		def add_portmap_path(src_mac, dst_mac, port, path, bidirectional=True):
+			"""
+			Adds a path to the portmap.
+			A path is a list of switch dpid strings.
+			"""
+			for i in range(len(path)-1):
+				add_portmap_entry(path[i], src_mac, dst_mac, port, path[i+1], bidirectional)
+
 		self.portmap = {
 			# Video Traffic (Port 200, UDP) - High Bandwidth (100 Mbps Links)
 			# h1 -> Video Server
@@ -111,16 +124,18 @@ class CustomSlice (EventMixin):
 			msg.in_port = event.port
 			event.connection.send(msg)
 
-		
+
 		def forward (message = None):
 			this_dpid = dpid_to_str(event.dpid)
 
+			log.debug("\n")
 			print("Packet received from %s at %s (port %d)" % (packet.src, this_dpid, event.port))
 
 			if packet.dst.is_multicast:
 				flood()
 				return
 			else:
+				log.debug("--------------------")
 				log.debug("Got unicast packet for %s at %s (input port %d):",
 					packet.dst, dpid_to_str(event.dpid), event.port)
 
@@ -134,6 +149,7 @@ class CustomSlice (EventMixin):
 						log.debug("HTTP traffic detected: %s -> %s", packet.src, packet.dst)
 						path_key = (this_dpid, packet.src, packet.dst, 80)
 					else:
+						log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
 						flood()
 						return
 
@@ -153,6 +169,8 @@ class CustomSlice (EventMixin):
 					log.debug("packet type has no transport ports, flooding")
 					# flood and install the flow table entry for the flood
 					install_fwdrule(event,packet,of.OFPP_FLOOD)
+
+				log.debug("--------------------")
 
 		forward()
 
