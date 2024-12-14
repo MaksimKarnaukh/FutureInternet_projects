@@ -37,31 +37,36 @@ class CustomSlice (EventMixin):
 			# h1 -> Video Server
 			('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
 			('00-00-00-00-00-04', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-07',
-			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): None,
 
 			# h4 -> Video Server
 			('00-00-00-00-00-03', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-02',
 			('00-00-00-00-00-02', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-01',
 			('00-00-00-00-00-01', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
 			('00-00-00-00-00-04', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-07',
-			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): None,
 
 			# HTTP Traffic (Port 80, TCP) - Low Bandwidth (10 Mbps Links)
 			# h1 -> HTTP Server
 			('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-02',
 			('00-00-00-00-00-02', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
 			('00-00-00-00-00-05', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): None,
 
 			# h2 -> HTTP Server
 			('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
 			('00-00-00-00-00-05', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): None,
 
 			# h3 -> HTTP Server
 			('00-00-00-00-00-03', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-06',
 			('00-00-00-00-00-06', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): None,
+		}
+
+		# (dpid string, dst MAC addr) -> port (int)
+		self.switch_to_hosts_ports = {
+			('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01')): 1,
+			('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02')): 2,
+			('00-00-00-00-00-03', EthAddr('00:00:00:00:00:03')): 2,
+			('00-00-00-00-00-03', EthAddr('00:00:00:00:00:04')): 3,
+			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:05')): 4,
+			('00-00-00-00-00-07', EthAddr('00:00:00:00:00:06')): 5,
 		}
 
 	def _handle_ConnectionUp(self, event):
@@ -110,6 +115,8 @@ class CustomSlice (EventMixin):
 		def forward (message = None):
 			this_dpid = dpid_to_str(event.dpid)
 
+			print("Packet received from %s at %s (port %d)" % (packet.src, this_dpid, event.port))
+
 			if packet.dst.is_multicast:
 				flood()
 				return
@@ -133,11 +140,14 @@ class CustomSlice (EventMixin):
 					try:
 						next_hop_dpid = self.portmap[path_key]
 						outport = self.adjacency[this_dpid][next_hop_dpid]
+
 						log.debug("Forwarding to next hop: %s via port %d", next_hop_dpid, outport)
 						install_fwdrule(event, packet, outport)
+
 					except KeyError:
-						log.warning("No path found for %s -> %s", packet.src, packet.dst)
-						flood()
+						outport = self.switch_to_hosts_ports[(this_dpid, packet.dst)]
+						log.debug("Forwarding to host %s via port %d", packet.dst, outport)
+						install_fwdrule(event, packet, outport)
 
 				except AttributeError:
 					log.debug("packet type has no transport ports, flooding")
