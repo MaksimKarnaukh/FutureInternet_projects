@@ -182,7 +182,7 @@ class CustomSlice (EventMixin):
 				# 		log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
 				# 		flood("Non-UDP/TCP traffic")
 				# 		return
-
+				path_key = None
 				if udpp and udpp.dstport == 200:  # Video Service
 					log.debug("Video traffic detected: %s -> %s", packet.src, packet.dst)
 					path_key = (this_dpid, packet.src, packet.dst, 200)
@@ -191,11 +191,19 @@ class CustomSlice (EventMixin):
 					path_key = (this_dpid, packet.src, packet.dst, 80)
 				else:
 					if udpp:
-						log.debug("Undestined UDP traffic detected: %s -> %s", packet.src, packet.dst)
+						log.debug("UDP traffic detected: %s -> %s", packet.src, packet.dst)
 						path_key = (this_dpid, packet.src, packet.dst, 200)
 					elif tcpp:
-						log.debug("Undestined TCP traffic detected: %s -> %s", packet.src, packet.dst)
-						path_key = (this_dpid, packet.src, packet.dst, 80)
+						log.debug("TCP traffic detected: %s -> %s", packet.src, packet.dst)
+						if tcpp.dstport == 80 or tcpp.srcport == 80:
+							path_key = (this_dpid, packet.src, packet.dst, 80)
+						elif tcpp.dstport == 200 or tcpp.srcport == 200:
+							path_key = (this_dpid, packet.src, packet.dst, 200)
+						print(event.parsed)
+						print(event.parsed.find('tcp'))
+						print(event.parsed.find('tcp').dstport, event.parsed.find('tcp').srcport)
+						print(event.parsed.find('udp'))
+						# raise Exception("Unknown traffic detected")
 					else:
 						log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
 						flood()
@@ -212,7 +220,6 @@ class CustomSlice (EventMixin):
 					try:
 						outport = self.switch_to_hosts_ports[(this_dpid, packet.dst)]
 						log.debug("Forwarding to host %s via port %d", packet.dst, outport)
-						# raise Exception("Host traffic")
 						install_fwdrule(event, packet, outport)
 					except KeyError:
 						log.debug("No mapping found for host %s, flooding", packet.dst)
