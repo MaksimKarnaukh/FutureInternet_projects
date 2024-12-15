@@ -223,7 +223,9 @@ class CustomSlice (EventMixin):
 						install_fwdrule(event, packet, outport)
 					except KeyError:
 						log.debug("No mapping found for host %s, flooding", packet.dst)
-						flood()
+						# install rule to drop the packet
+						return
+						# flood()
 
 			except AttributeError:
 				log.debug("packet type has no transport ports, flooding")
