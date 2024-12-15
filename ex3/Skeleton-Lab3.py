@@ -19,14 +19,27 @@ log = core.getLogger()
 class CustomSlice (EventMixin):
 
 	def add_portmap_entry(self, src_dpid, src_mac, dst_mac, port, dst_dpid, bidirectional=True):
+		"""
+		Adds an entry to the portmap.
+		:param src_dpid: source switch dpid string
+		:param src_mac: source MAC address
+		:param dst_mac: destination MAC address
+		:param port: port number
+		:param dst_dpid: destination switch dpid string
+		:param bidirectional: if True, the entry will be added in both directions
+		"""
 		self.portmap[(src_dpid, src_mac, dst_mac, port)] = dst_dpid
 		if bidirectional:
 			self.portmap[(dst_dpid, dst_mac, src_mac, port)] = src_dpid
 
 	def add_portmap_path(self, src_mac, dst_mac, port, path, bidirectional=True):
 		"""
-		Adds a path to the portmap.
-		A path is a list of switch dpid strings.
+		Adds a path to the portmap. A path is a list of consecutive switch dpid strings.
+		:param src_mac: source MAC address
+		:param dst_mac: destination MAC address
+		:param port: port number
+		:param path: list of switch dpid strings
+		:param bidirectional: if True, the path will be added in both directions
 		"""
 		for i in range(len(path) - 1):
 			self.add_portmap_entry(src_dpid=path[i], src_mac=src_mac, dst_mac=dst_mac, port=port, dst_dpid=path[i + 1],
@@ -54,36 +67,12 @@ class CustomSlice (EventMixin):
 		self.add_portmap_path(EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80, ['00-00-00-00-00-02', '00-00-00-00-00-05', '00-00-00-00-00-07'])
 		self.add_portmap_path(EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80, ['00-00-00-00-00-03', '00-00-00-00-00-06', '00-00-00-00-00-07'])
 
-		# self.portmap = {
-		# 	# Video Traffic (Port 200, UDP) - High Bandwidth (100 Mbps Links)
-		# 	# h1 -> Video Server
-		# 	('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
-		# 	('00-00-00-00-00-04', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-07',
-		#
-		# 	# h4 -> Video Server
-		# 	('00-00-00-00-00-03', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-02',
-		# 	('00-00-00-00-00-02', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-01',
-		# 	('00-00-00-00-00-01', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-04',
-		# 	('00-00-00-00-00-04', EthAddr('00:00:00:00:00:04'), EthAddr('00:00:00:00:00:05'), 200): '00-00-00-00-00-07',
-		#
-		# 	# HTTP Traffic (Port 80, TCP) - Low Bandwidth (10 Mbps Links)
-		# 	# h1 -> HTTP Server
-		# 	('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-02',
-		# 	('00-00-00-00-00-02', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
-		# 	('00-00-00-00-00-05', EthAddr('00:00:00:00:00:01'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-		#
-		# 	# h2 -> HTTP Server
-		# 	('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-05',
-		# 	('00-00-00-00-00-05', EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-		#
-		# 	# h3 -> HTTP Server
-		# 	('00-00-00-00-00-03', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-06',
-		# 	('00-00-00-00-00-06', EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80): '00-00-00-00-00-07',
-		# }
-
 		print(len(self.portmap), self.portmap)
 
-		# (dpid string, dst MAC addr) -> port (int)
+		'''
+		self.switch_to_hosts_ports is a dictionary that relates switch dpid and host MAC address to port:
+		(dpid string, dst MAC addr) -> port (int)
+		'''
 		self.switch_to_hosts_ports = {
 			('00-00-00-00-00-01', EthAddr('00:00:00:00:00:01')): 1,
 			('00-00-00-00-00-02', EthAddr('00:00:00:00:00:02')): 2,
@@ -139,8 +128,6 @@ class CustomSlice (EventMixin):
 		def forward (message = None):
 			this_dpid = dpid_to_str(event.dpid)
 
-			# print("\nPacket received from %s at %s (port %d)" % (packet.src, this_dpid, event.port))
-
 			if packet.dst.is_multicast:
 				flood()
 				return
@@ -150,64 +137,26 @@ class CustomSlice (EventMixin):
 			try:
 				""" Add your logic here """
 
-				# log.debug("--------------------Start Forwarding--------------------")
+				log.debug("--------------------Start Forwarding--------------------")
 
-				# if udpp:
-				# 	if udpp.dstport == 200:  # Video Service
-				# 		log.debug("Video traffic detected: %s -> %s", packet.src, packet.dst)
-				# 		path_key = (this_dpid, packet.src, packet.dst, 200)
-				# 	else:
-				# 		log.debug("Unknown UDP traffic detected: %s -> %s", packet.src, packet.dst)
-				# 		flood()
-				# 		return
-				# elif tcpp:
-				# 	if tcpp.dstport == 80:  # HTTP Service
-				# 		log.debug("HTTP traffic detected: %s -> %s", packet.src, packet.dst)
-				# 		path_key = (this_dpid, packet.src, packet.dst, 80)
-				# 	else:
-				# 		log.debug("Unknown TCP traffic detected: %s -> %s", packet.src, packet.dst)
-				# 		flood()
-				# 		return
-				# else:
-				# 	# log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
-				# 	# flood("Non-UDP/TCP traffic")
-				# 	# return
-				#
-				# 	try:
-				# 		outport = self.switch_to_hosts_ports[(this_dpid, packet.dst)]
-				# 		log.debug("Forwarding to host %s via port %d", packet.dst, outport)
-				# 		install_fwdrule(event, packet, outport)
-				# 		return
-				# 	except KeyError:
-				# 		log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
-				# 		flood("Non-UDP/TCP traffic")
-				# 		return
 				path_key = None
-				if udpp and udpp.dstport == 200:  # Video Service
-					log.debug("Video traffic detected: %s -> %s", packet.src, packet.dst)
-					path_key = (this_dpid, packet.src, packet.dst, 200)
-				elif tcpp and tcpp.dstport == 80:  # HTTP Service
-					log.debug("HTTP traffic detected: %s -> %s", packet.src, packet.dst)
-					path_key = (this_dpid, packet.src, packet.dst, 80)
-				else:
-					if udpp:
-						log.debug("UDP traffic detected: %s -> %s", packet.src, packet.dst)
-						path_key = (this_dpid, packet.src, packet.dst, 200)
-					elif tcpp:
-						log.debug("TCP traffic detected: %s -> %s", packet.src, packet.dst)
-						if tcpp.dstport == 80 or tcpp.srcport == 80:
-							path_key = (this_dpid, packet.src, packet.dst, 80)
-						elif tcpp.dstport == 200 or tcpp.srcport == 200:
-							path_key = (this_dpid, packet.src, packet.dst, 200)
-						print(event.parsed)
-						print(event.parsed.find('tcp'))
-						print(event.parsed.find('tcp').dstport, event.parsed.find('tcp').srcport)
-						print(event.parsed.find('udp'))
-						# raise Exception("Unknown traffic detected")
+				if udpp:
+					if udpp.dstport == 200: # Video Service
+						log.debug("Video directed traffic detected: %s -> %s", packet.src, packet.dst)
 					else:
-						log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
-						flood()
-						return
+						log.debug("UDP traffic detected: %s -> %s (Port: %d)", packet.src, packet.dst, udpp.dstport)
+					path_key = (this_dpid, packet.src, packet.dst, 200)
+				elif tcpp:
+					if tcpp.dstport == 80 or tcpp.srcport == 80: # HTTP Service
+						log.debug("HTTP directed traffic detected: %s -> %s", packet.src, packet.dst)
+						path_key = (this_dpid, packet.src, packet.dst, 80)
+					elif tcpp.dstport == 200 or tcpp.srcport == 200:
+						log.debug("TCP traffic detected: %s (src port %s) -> %s (dst port %s)", packet.src, tcpp.srcport, packet.dst, tcpp.dstport)
+						path_key = (this_dpid, packet.src, packet.dst, 200)
+				else:
+					log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
+					flood()
+					return
 
 				try:
 					next_hop_dpid = self.portmap[path_key]
@@ -216,7 +165,7 @@ class CustomSlice (EventMixin):
 					install_fwdrule(event, packet, outport)
 
 				except KeyError:
-					log.debug("No path found for %s -> %s", packet.src, packet.dst) #######
+					log.debug("No switch path found for %s -> %s", packet.src, packet.dst)
 					try:
 						outport = self.switch_to_hosts_ports[(this_dpid, packet.dst)]
 						log.debug("Forwarding to host %s via port %d", packet.dst, outport)
