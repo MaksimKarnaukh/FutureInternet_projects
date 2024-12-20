@@ -67,7 +67,7 @@ class CustomSlice (EventMixin):
 		self.add_portmap_path(EthAddr('00:00:00:00:00:02'), EthAddr('00:00:00:00:00:06'), 80, ['00-00-00-00-00-02', '00-00-00-00-00-05', '00-00-00-00-00-07'])
 		self.add_portmap_path(EthAddr('00:00:00:00:00:03'), EthAddr('00:00:00:00:00:06'), 80, ['00-00-00-00-00-03', '00-00-00-00-00-06', '00-00-00-00-00-07'])
 
-		print(len(self.portmap), self.portmap)
+		print(len(self.portmap), self.portmap) # to check the portmap
 
 		'''
 		self.switch_to_hosts_ports is a dictionary that relates switch dpid and host MAC address to port:
@@ -150,11 +150,11 @@ class CustomSlice (EventMixin):
 					if tcpp.dstport == 80 or tcpp.srcport == 80: # HTTP Service
 						log.debug("HTTP directed traffic detected: %s -> %s", packet.src, packet.dst)
 						path_key = (this_dpid, packet.src, packet.dst, 80)
-					elif tcpp.dstport == 200 or tcpp.srcport == 200:
+					elif tcpp.dstport == 200 or tcpp.srcport == 200: # need to check because traffic coming back from the server will have different dst port
 						log.debug("TCP traffic detected: %s (src port %s) -> %s (dst port %s)", packet.src, tcpp.srcport, packet.dst, tcpp.dstport)
 						path_key = (this_dpid, packet.src, packet.dst, 200)
 				else:
-					log.debug("Unknown traffic detected: %s -> %s", packet.src, packet.dst)
+					log.debug("Unknown traffic detected: %s -> %s, flooding", packet.src, packet.dst)
 					flood()
 					return
 
@@ -163,7 +163,6 @@ class CustomSlice (EventMixin):
 					outport = self.adjacency[this_dpid][next_hop_dpid]
 					log.debug("Forwarding to next hop: %s via port %d", next_hop_dpid, outport)
 					install_fwdrule(event, packet, outport)
-
 				except KeyError:
 					log.debug("No switch path found for %s -> %s", packet.src, packet.dst)
 					try:
@@ -171,9 +170,8 @@ class CustomSlice (EventMixin):
 						log.debug("Forwarding to host %s via port %d", packet.dst, outport)
 						install_fwdrule(event, packet, outport)
 					except KeyError:
-						log.debug("No mapping found for host %s, flooding", packet.dst)
+						log.debug("No mapping found for host %s, or because access for that dst port has been denied", packet.dst)
 						return
-						# flood()
 
 			except AttributeError:
 				log.debug("packet type has no transport ports, flooding")
