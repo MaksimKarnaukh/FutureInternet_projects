@@ -5,7 +5,7 @@ fields = ["proto", "src", "dst"]
 
 def parse_tree(tree_file):
     """
-    Parses the decision tree file and extracts conditions and actions.
+    Parses the decision tree file and extracts ranges tables, conditions and actions.
     """
     with open(tree_file, 'r') as f:
         lines = f.readlines()
@@ -42,7 +42,7 @@ def parse_tree(tree_file):
 
 def extract_range(condition, field, value_list, max_val):
     """
-    Extracts the min and max range for a field based on condition inequalities.
+    Extracts the min and max range for a field in a condition based on condition field inequalities.
     """
     matches = re.findall(rf"{field}([<>=!]+)(\d+)", condition)
     min_range = 0
@@ -58,7 +58,7 @@ def extract_range(condition, field, value_list, max_val):
             min_range = max(min_range, value)
             max_range = min(max_range, value)
 
-    # Map the extracted range to action select range indices
+    # map the extracted range to action select range indices
     start_action = 1
     end_action = 1
 
@@ -75,7 +75,7 @@ def extract_range(condition, field, value_list, max_val):
 
 def generate_rules(ip_proto, src_port, dst_port, conditions):
     """
-    Generates match-action table rules based on the decision tree.
+    Generates rules for shell script based on the decision tree.
     """
 
     def generate_range_rules(feature_name, value_list, max_val, action_offset):
@@ -120,22 +120,18 @@ def write_rules_script(feature1_rules, feature2_rules, feature3_rules, forwardin
     Writes the rules to a shell script.
     """
     with open(output_file, 'w') as f:
-
         if feature1_rules:
             for rule in feature1_rules:
                 f.write(rule + ";\n")
             f.write("\n")
-
         if feature2_rules:
             for rule in feature2_rules:
                 f.write(rule + ";\n")
             f.write("\n")
-
         if feature3_rules:
             for rule in feature3_rules:
                 f.write(rule + ";\n")
             f.write("\n")
-
         for rule in forwarding_rules:
             f.write(rule + ";\n")
 
@@ -145,8 +141,6 @@ if __name__ == "__main__":
     output_file = "rules-dt.sh"
 
     ip_proto, src_port, dst_port, conditions = parse_tree(tree_file)
-    feature1_rules, feature2_rules, feature3_rules, forwarding_rules = generate_rules(
-        ip_proto, src_port, dst_port, conditions
-    )
+    feature1_rules, feature2_rules, feature3_rules, forwarding_rules = generate_rules(ip_proto, src_port, dst_port, conditions)
     write_rules_script(feature1_rules, feature2_rules, feature3_rules, forwarding_rules, output_file)
     print(f"Rules script generated: {output_file}")
