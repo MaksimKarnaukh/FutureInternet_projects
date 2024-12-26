@@ -194,7 +194,7 @@ control MyIngress(inout headers hdr,
 
    table feature2_exact{
        key = {
-           hdr.tcp.srcPort : range ;
+           hdr.tcp.src_port : range ;
        }
        actions = {
           NoAction;
@@ -210,7 +210,7 @@ control MyIngress(inout headers hdr,
         key = {
 	    // TO-DO: Define the key using the TCP destination port.
 	    // Remember the match type must be range
-            hdr.tcp.dstPort : range ;
+            hdr.tcp.dst_port : range ;
         }
         actions = {
 	   NoAction;
