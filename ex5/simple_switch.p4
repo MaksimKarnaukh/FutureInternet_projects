@@ -24,17 +24,16 @@ header ipv4_t {
     //TO-DO: Define the IPv4 header with all its fields
     bit<4>   version;
     bit<4>   ihl;
-    bit<6>   dscp;
-    bit<2>   ecn;
-    bit<16>  total_len;
+    bit<8>   diffserv;
+    bit<16>  totalLen;
     bit<16>  identification;
     bit<3>   flags;
-    bit<13>  frag_offset;
+    bit<13>  fragOffset;
     bit<8>   ttl;
     bit<8>   protocol;
-    bit<16>  hdr_checksum;
-    bit<32>  src_addr;
-    bit<32>  dst_addr;
+    bit<16>  hdrChecksum;
+    bit<32>  srcAddr;
+    bit<32>  dstAddr;
 }
 
 header tcp_t {
