@@ -109,7 +109,7 @@ def generate_rules(ip_proto, src_port, dst_port, conditions):
 
         forwarding_rules.append(
             f"simple_switch_CLI --thrift-port 9090 <<< \"table_add MyIngress.ipv4_exact MyIngress.ipv4_forward "
-            f"{proto_action_start}->{proto_action_end} {src_action_start}->{src_action_end} {dst_action_start}->{dst_action_end} => 0x0A000102 {action_class} 1\""
+            f"{proto_action_start}->{proto_action_end} {src_action_start}->{src_action_end} {dst_action_start}->{dst_action_end} => 0x0A00010{action_class} {action_class} 1\""
         )
 
     return feature1_rules, feature2_rules, feature3_rules, forwarding_rules
