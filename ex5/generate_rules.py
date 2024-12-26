@@ -1,7 +1,7 @@
 import re
 
-# fields = ["ip_proto", "src_port", "dst_port"]
-fields = ["proto", "src", "dst"]
+fields = ["ip_proto", "src_port", "dst_port"]
+# fields = ["proto", "src", "dst"]
 
 def parse_tree(tree_file):
     """
@@ -137,7 +137,7 @@ def write_rules_script(feature1_rules, feature2_rules, feature3_rules, forwardin
 
 
 if __name__ == "__main__":
-    tree_file = "tree-test.txt"
+    tree_file = "tree-four.txt"
     output_file = "rules-dt.sh"
 
     ip_proto, src_port, dst_port, conditions = parse_tree(tree_file)
