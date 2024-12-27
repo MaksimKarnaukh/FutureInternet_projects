@@ -32,8 +32,8 @@ header ipv4_t {
     bit<8>   ttl;
     bit<8>   protocol;
     bit<16>  hdrChecksum;
-    bit<32>  srcAddr;
-    bit<32>  dstAddr;
+    ip4Addr_t  srcAddr;
+    ip4Addr_t  dstAddr;
 }
 
 header tcp_t {
@@ -260,8 +260,8 @@ control MyIngress(inout headers hdr,
                         feature2_exact.apply();
                         feature3_exact.apply();
                 } else {
-                        set_actionselect1(1);
-                        set_actionselect2(1);
+                        meta.action_select2 = 1;
+                        meta.action_select3 = 1;
                 }
 	}
 	ipv4_exact.apply();
