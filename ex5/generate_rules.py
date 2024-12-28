@@ -73,7 +73,35 @@ def extract_range(condition, field, value_list, max_val):
 
     return start_action, end_action
 
-def generate_rules(ip_proto, src_port, dst_port, conditions):
+def class_to_action(class_, class_to_action_map):
+    """
+    Maps a class to an action.
+    """
+    try:
+        return class_to_action_map[class_]
+    except KeyError:
+        print(f"Class {class_} not found")
+
+def action_to_host_port(action, action_to_host_port_map):
+    """
+    Maps an action to a host port.
+    """
+    try:
+        host_port = action_to_host_port_map[action]
+        return host_port
+    except KeyError:
+        print(f"Action {action} not found")
+
+def get_dst_host_ip_port_string(class_, class_to_action_map, action_to_host_port_map):
+    """
+    Returns the destination host IP and port for a given class.
+    """
+    action = class_to_action(class_, class_to_action_map)
+    host, port = action_to_host_port(action, action_to_host_port_map)
+    host_in_hex = f"0x0A00010{host:X}"
+    return f"{host_in_hex} {port}"
+
+def generate_rules(ip_proto, src_port, dst_port, conditions, class_to_action_map, action_to_host_port_map):
     """
     Generates rules for shell script based on the decision tree.
     """
@@ -109,7 +137,7 @@ def generate_rules(ip_proto, src_port, dst_port, conditions):
 
         forwarding_rules.append(
             f"simple_switch_CLI --thrift-port 9090 <<< \"table_add MyIngress.ipv4_exact MyIngress.ipv4_forward "
-            f"{proto_action_start}->{proto_action_end} {src_action_start}->{src_action_end} {dst_action_start}->{dst_action_end} => 0x0A00010{action_class} {action_class} 1\""
+            f"{proto_action_start}->{proto_action_end} {src_action_start}->{src_action_end} {dst_action_start}->{dst_action_end} => {get_dst_host_ip_port_string(action_class, class_to_action_map, action_to_host_port_map)} 1\""
         )
 
     return feature1_rules, feature2_rules, feature3_rules, forwarding_rules
@@ -137,10 +165,28 @@ def write_rules_script(feature1_rules, feature2_rules, feature3_rules, forwardin
 
 
 if __name__ == "__main__":
+
     tree_file = "tree-four.txt"
     output_file = "rules-dt.sh"
 
+    """Class matching guide (see https://github.com/grupogita/ONOSP4-tutorial/blob/main/DecisionTrees2/README.md):"""
+    # Maps class to action
+    class_to_action_map = {
+        0: 2,
+        1: 3,
+        2: 2,
+        3: 3,
+        4: 4,
+    }
+    # Maps action to host and port
+    action_to_host_port_map = {
+        0: (), # drop
+        2: (2, 2),
+        3: (3, 3),
+        4: (4, 4),
+    }
+
     ip_proto, src_port, dst_port, conditions = parse_tree(tree_file)
-    feature1_rules, feature2_rules, feature3_rules, forwarding_rules = generate_rules(ip_proto, src_port, dst_port, conditions)
+    feature1_rules, feature2_rules, feature3_rules, forwarding_rules = generate_rules(ip_proto, src_port, dst_port, conditions, class_to_action_map, action_to_host_port_map)
     write_rules_script(feature1_rules, feature2_rules, feature3_rules, forwarding_rules, output_file)
     print(f"Rules script generated: {output_file}")

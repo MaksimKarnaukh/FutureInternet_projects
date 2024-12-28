@@ -13,9 +13,9 @@ simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.feature3_exact MyI
 
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 1->1 1->1 => 0x0A000104 4 1";
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 1->1 2->3 => 0x0A000104 4 1";
-simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 2->2 1->3 => 0x0A000100 0 1";
+simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 2->2 1->3 => 0x0A000102 2 1";
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 3->3 1->3 => 0x0A000104 4 1";
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 4->4 1->2 => 0x0A000104 4 1";
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 4->4 3->3 => 0x0A000103 3 1";
-simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 5->5 1->3 => 0x0A000100 0 1";
+simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 5->5 1->3 => 0x0A000102 2 1";
 simple_switch_CLI --thrift-port 9090 <<< "table_add MyIngress.ipv4_exact MyIngress.ipv4_forward 1->1 6->6 1->3 => 0x0A000104 4 1";
