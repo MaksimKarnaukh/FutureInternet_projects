@@ -1,0 +1,43 @@
+root@p4:~/tutorials/DecisionTrees2# tcpdump
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+01:51:50.404004 IP 10.0.1.239.39786 > 10.0.1.10.17874: Flags [S], seq 13579, win 8192, length 0
+01:52:11.111769 IP 10.0.1.47.47147 > 10.0.1.44.51503: Flags [S], seq 13579, win 8192, length 0
+01:52:17.264012 IP 10.0.1.160.47256 > 10.0.1.119.16992: Flags [S], seq 13579, win 8192, length 0
+01:52:20.090260 IP6 fe80::f811:fff:fed4:9215 > ip6-allrouters: ICMP6, router solicitation, length 16
+01:52:42.120055 IP 10.0.1.131.38758 > 10.0.1.223.24385: Flags [S], seq 13579, win 8192, length 0
+01:52:46.311278 IP 10.0.1.46.40895 > 10.0.1.128.19126: Flags [S], seq 13579, win 8192, length 0
+01:52:59.028979 IP 10.0.1.74.44279 > 10.0.1.211.56084: Flags [S], seq 13579, win 8192, length 0
+01:53:37.914634 IP6 fe80::f811:fff:fed4:9215 > ip6-allrouters: ICMP6, router solicitation, length 16
+01:53:38.163261 IP 10.0.1.128.41376 > 10.0.1.149.4338: Flags [S], seq 13579, win 8192, length 0
+01:53:44.376067 IP 10.0.1.73.42879 > 10.0.1.13.30064: Flags [S], seq 13579, win 8192, length 0
+01:53:56.791124 IP 10.0.1.8.38323 > 10.0.1.4.21984: Flags [S], seq 13579, win 8192, length 0
+01:54:09.227354 IP 10.0.1.127.46705 > 10.0.1.167.8015: Flags [S], seq 13579, win 8192, length 0
+01:54:13.370713 IP 10.0.1.61.38929 > 10.0.1.109.54513: Flags [S], seq 13579, win 8192, length 0
+01:54:15.503039 IP 10.0.1.24.45879 > 10.0.1.58.49589: Flags [S], seq 13579, win 8192, length 0
+01:54:40.418888 IP 10.0.1.237.40790 > 10.0.1.94.2372: Flags [S], seq 13579, win 8192, length 0
+01:54:48.702960 IP 10.0.1.69.43333 > 10.0.1.62.47309: Flags [S], seq 13579, win 8192, length 0
+01:54:52.835024 IP 10.0.1.180.44862 > 10.0.1.121.19766: Flags [S], seq 13579, win 8192, length 0
+01:55:03.206372 IP 10.0.1.55.42732 > 10.0.1.241.20534: Flags [S], seq 13579, win 8192, length 0
+01:55:11.619142 IP 10.0.1.221.43065 > 10.0.1.159.47809: Flags [S], seq 13579, win 8192, length 0
+01:55:13.939025 IP 10.0.1.209.46999 > 10.0.1.5.21144: Flags [S], seq 13579, win 8192, length 0
+01:55:24.023389 IP 10.0.1.156.47351 > 10.0.1.205.15882: Flags [S], seq 13579, win 8192, length 0
+01:55:36.439404 IP 10.0.1.236.47659 > 10.0.1.49.57054: Flags [S], seq 13579, win 8192, length 0
+01:56:09.473322 IP6 fe80::f811:fff:fed4:9215 > ip6-allrouters: ICMP6, router solicitation, length 16
+01:56:21.965317 IP 10.0.1.96.40015 > 10.0.1.25.12370: Flags [S], seq 13579, win 8192, length 0
+01:56:32.795738 IP 10.0.1.46.42159 > 10.0.1.155.28893: Flags [S], seq 13579, win 8192, length 0
+01:56:34.379097 IP 10.0.1.225.42002 > 10.0.1.94.2979: Flags [S], seq 13579, win 8192, length 0
+01:56:38.527125 IP 10.0.1.105.48197 > 10.0.1.202.37592: Flags [S], seq 13579, win 8192, length 0
+01:56:42.674961 IP 10.0.1.208.47530 > 10.0.1.150.43254: Flags [S], seq 13579, win 8192, length 0
+01:57:05.911250 IP 10.0.1.221.38388 > 10.0.1.114.12996: Flags [S], seq 13579, win 8192, length 0
+01:57:10.055641 IP 10.0.1.107.42000 > 10.0.1.28.33481: Flags [S], seq 13579, win 8192, length 0
+01:57:14.190988 IP 10.0.1.216.43741 > 10.0.1.159.31550: Flags [S], seq 13579, win 8192, length 0
+01:57:40.619216 IP 10.0.1.134.46890 > 10.0.1.193.4358: Flags [S], seq 13579, win 8192, length 0
+01:58:07.995561 IP 10.0.1.214.48774 > 10.0.1.128.31814: Flags [S], seq 13579, win 8192, length 0
+02:00:48.033525 IP6 fe80::f811:fff:fed4:9215 > ip6-allrouters: ICMP6, router solicitation, length 16
+02:10:21.436598 IP6 fe80::f811:fff:fed4:9215 > ip6-allrouters: ICMP6, router solicitation, length 16
+^C
+35 packets captured
+35 packets received by filter
+0 packets dropped by kernel
+root@p4:~/tutorials/DecisionTrees2#
