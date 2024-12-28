@@ -1,7 +1,7 @@
 import re
 
 fields = ["ip_proto", "src_port", "dst_port"]
-# fields = ["proto", "src", "dst"]
+# fields = ["proto", "src", "dst"] # for the lecture demo and their tree file, uncomment this
 
 def parse_tree(tree_file):
     """
@@ -88,6 +88,8 @@ def action_to_host_port(action, action_to_host_port_map):
     """
     try:
         host_port = action_to_host_port_map[action]
+        if not host_port: # drop, but how? whatever just raise KeyError ¯\_(ツ)_/¯
+            raise KeyError
         return host_port
     except KeyError:
         print(f"Action {action} not found")
