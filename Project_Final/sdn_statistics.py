@@ -63,9 +63,7 @@ class StatsCollector(EventMixin):
     def _handle_FlowStatsReceived(self, event):
         log.info(f"FlowStats Received from {dpid_to_str(event.connection.dpid)}")
         stats_data = flow_stats_to_list(event.stats)
-        self.stats[event.connection.dpid] = {
-            'flow_stats': stats_data
-        }
+        self.stats[event.connection.dpid] = {'flow_stats': stats_data}
         self.save_to_csv(stats_data, f"flow_stats_{dpid_to_str(event.connection.dpid)}.csv")
         self.display_stats(stats_data)
 
