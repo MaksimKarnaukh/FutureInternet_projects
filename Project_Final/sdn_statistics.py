@@ -80,7 +80,7 @@ class StatsCollector(EventMixin):
     #     self.save_to_csv(stats_data, f"stats_{dpid_to_str(event.connection.dpid)}.csv")
     #     self.display_stats(stats_data)
 
-    def append_to_txt(self, data, filename, diff, switch_identifier):
+    def append_to_txt(self, data, filename, diff: dict, switch_identifier):
         with open(filename, 'a') as f:
             nr_of_active_flows = len(data)
             # f.write(f"Flow-Level Statistics at Switch" + switch_identifier + "\n")
@@ -113,54 +113,58 @@ class StatsCollector(EventMixin):
             #     f.write("\n")
             # print(f"Flow-Level Statistics at Switch {switch_identifier} written to {filename}")
 
-            f.write("Flow-Level Statistics at Switch " + switch_identifier + "\n")
-            f.write("Nr of active flows: " + str(nr_of_active_flows) + "\n")
+            timestamp_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            f.write("Flow-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now) + "\n")
+            f.write("Nr of active flows: " + str(nr_of_active_flows) + "\n\n")
             for flow in data:
                 matching = flow["match"]
                 tp_src = matching['tp_src'] if 'tp_src' in matching else None
                 tp_dst = matching['tp_dst'] if 'tp_dst' in matching else None
-                duration = flow['duration_sec'] + flow['duration_nsec'] / 1e9
+                duration = round(flow['duration_sec'] + flow['duration_nsec'] / 1e9, 3)
+                ip_protocol = matching['dl_type'] if 'dl_type' in matching else None
 
-                f.write("Flow matching source: " + matching['nw_src'] + "," + matching['dl_src'] + "\n")
+                f.write("Flow matching (protocol: " + ip_protocol + ") source: " + str(matching['nw_src']) + ", " + str(matching['dl_src']))
                 if tp_src:
-                    f.write("source port: " + tp_src + "\n")
-                f.write("and destination: " + matching['nw_dst'] + "," + matching['dl_dst'] + "\n")
+                    f.write(", port: " + str(tp_src))
+                f.write(" and destination: " + str(matching['nw_dst']) + ", " + str(matching['dl_dst']))
                 if tp_dst:
-                    f.write("destination port: " + tp_dst + "\n")
-                f.write("Statistics since start:\n")
-                f.write("\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(flow['packet_count']/duration) + " per second\n")
-                f.write("\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(flow['byte_count']/duration) + " per second\n")
+                    f.write(", port: " + str(tp_dst))
+                f.write("\nStatistics since start:\n")
+                f.write("\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(round(flow['packet_count']/duration, 3)) + " per second\n")
+                f.write("\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(round(flow['byte_count']/duration, 3)) + " per second\n")
                 f.write("\tDuration: " + str(duration) + " seconds\n")
                 if "diff" in flow:
                     f.write("Statistics since last request:\n")
-                    for diff in flow["diff"]:
-                        f.write("\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(diff['packet_count']/duration) + " per second\n")
-                        f.write("\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(diff['byte_count']/duration) + " per second\n")
-                        f.write("\tDuration: " + str(diff['duration']) + " seconds\n")
+                    diff = flow["diff"]
+                    diff_duration = round(diff['duration_sec'] + diff['duration_nsec'] / 1e9, 3)
+                    f.write("\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['packet_count']/duration, 3)) + " per second\n")
+                    f.write("\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['byte_count']/duration, 3)) + " per second\n")
+                    f.write("\tDuration: " + str(diff_duration) + " seconds\n")
                 f.write("\n")
             log.debug("Flow-Level Statistics at Switch " + switch_identifier + " written to " + filename)
+            f.write("="*100 + "\n")
 
     def calculate_diff(self, old_stats, new_stats):
         """
         Calculate the difference between two sets of flow statistics (old and new) and return the difference. Only if the flow is present in the new stats and old stats
         """
         for new_flow in new_stats:
-            diff = []
+            diff = {}
             for old_flow in old_stats:
                 if new_flow['match'] == old_flow['match']:
-                    diff.append({
+                    diff = {
                         'match': new_flow['match'],
                         'packet_count': new_flow['packet_count'] - old_flow['packet_count'],
                         'byte_count': new_flow['byte_count'] - old_flow['byte_count'],
                         'duration_sec': new_flow['duration_sec'] - old_flow['duration_sec'],
                         'duration_nsec': new_flow['duration_nsec'] - old_flow['duration_nsec']
-                    })
+                    }
                     break
             
             # Append diff to new_flow if diff is not empty
             if diff:
                 new_flow['diff'] = diff 
-        return diff
 
     def _handle_FlowStatsReceived(self, event):
         """
@@ -179,7 +183,6 @@ class StatsCollector(EventMixin):
         self.append_to_txt(stats_data, filename+".txt", diff, switch_identifier)
         self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
-        # TODO: create a way to append to a txt file, together with printing to terminal (which is already done)
 
     def _handle_PortStatsReceived(self, event):
         """
