@@ -119,7 +119,7 @@ class StatsCollector(EventMixin):
                 str_stream +="\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['byte_count']/duration, 3)) + " per second\n"
                 str_stream +="\tDuration: " + str(diff_duration) + " seconds\n"
             str_stream +="\n"
-
+        return str_stream
 
     def calculate_diff(self, old_stats, new_stats):
         """
