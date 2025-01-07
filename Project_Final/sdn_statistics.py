@@ -34,7 +34,8 @@ class StatsCollector(EventMixin):
         for file in os.listdir():
             if file.startswith('flow_stats') and file.endswith('.txt'):
                 os.remove(file)
-
+        # active_talkers: dict switch -> bytes
+        self.active_talkers = {'Network': []}
 
         self.interval = timer_interval # timer interval in seconds
         Timer(self.interval, self._timer_func, recurring=True) # library timer function
@@ -87,6 +88,8 @@ class StatsCollector(EventMixin):
         str_stream += "Flow-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now) + "\n"
         # append number of active flows
         str_stream +="Nr of active flows: " + str(nr_of_active_flows) + "\n\n"
+        # sort flows by byte rate, highest first
+        data.sort(key=lambda x: x['average_byte_rate'], reverse=True)
         # iterate over each flow
         for flow in data:
             # get matching fields
@@ -115,8 +118,8 @@ class StatsCollector(EventMixin):
                 str_stream +="Statistics since last request:\n"
                 diff = flow["diff"]
                 diff_duration = round(diff['duration_sec'] + diff['duration_nsec'] / 1e9, 3)
-                str_stream +="\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['packet_count']/duration, 3)) + " per second\n"
-                str_stream +="\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['byte_count']/duration, 3)) + " per second\n"
+                str_stream +="\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['average_packet_rate'], 3)) + " per second\n"
+                str_stream +="\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['average_byte_rate'], 3)) + " per second\n"
                 str_stream +="\tDuration: " + str(diff_duration) + " seconds\n"
             str_stream +="\n"
 
@@ -136,16 +139,24 @@ class StatsCollector(EventMixin):
                         'duration_sec': new_flow['duration_sec'] - old_flow['duration_sec'],
                         'duration_nsec': new_flow['duration_nsec'] - old_flow['duration_nsec']
                     }
+                    total_duration = diff['duration_sec'] + diff['duration_nsec'] / 1e9
+                    average_packet_rate = diff['packet_count'] / total_duration
+                    average_byte_rate = diff['byte_count'] / total_duration
+                    diff['average_packet_rate'] = average_packet_rate
+                    diff['average_byte_rate'] = average_byte_rate
                     break
             
             # Append diff to new_flow if diff is not empty
             if diff:
                 new_flow['diff'] = diff 
 
+
+
     def _handle_FlowStatsReceived(self, event):
         """
         Handles flow stats received event
         """
+        # Update received flow stats
         switch_identifier = dpid_to_str(event.connection.dpid)
         log.info("FlowStats received from %s", dpid_to_str(event.connection.dpid))
 
@@ -155,7 +166,12 @@ class StatsCollector(EventMixin):
         if event.connection.dpid not in self.stats: # event.connection.dpid is the datapath id of the switch
             self.stats[event.connection.dpid] = {}
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
+        self.update_active_talkers(stats_data, switch_identifier)
+
+
+        # Use the updated stats
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid)
+
         self.append_to_txt(stats_data, filename+".txt", switch_identifier)
         self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
