@@ -156,7 +156,7 @@ class StatsCollector(EventMixin):
             self.stats[event.connection.dpid] = {}
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid)
-        self.append_to_txt(stats_data, filename+".txt", diff, switch_identifier)
+        self.append_to_txt(stats_data, filename+".txt", switch_identifier)
         self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
 
