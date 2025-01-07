@@ -65,21 +65,6 @@ class StatsCollector(EventMixin):
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
         connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request())) # request port stats
 
-
-    # def _handle_StatsReply(self, event):
-    #     log.info(f"StatsReply from switch {dpid_to_str(event.connection.dpid)}")
-    #     stats_data = []
-    #     for flow in event.stats:
-    #         stats_data.append({
-    #             'Match': str(flow.match),
-    #             'Packet Count': flow.packet_count,
-    #             'Byte Count': flow.byte_count,
-    #             'Duration': flow.duration_sec
-    #         })
-    #     self.stats[event.connection.dpid] = stats_data
-    #     self.save_to_csv(stats_data, f"stats_{dpid_to_str(event.connection.dpid)}.csv")
-    #     self.display_stats(stats_data)
-
     def append_to_txt(self, data, filename, switch_identifier):
         """
         Append flow statistics data to a txt file
@@ -89,6 +74,7 @@ class StatsCollector(EventMixin):
             f.write(str_stream)
             log.debug("Flow-Level Statistics at Switch " + switch_identifier + " written to " + filename)
             f.write("="*100 + "\n")
+
     def flow_stats_string(self, data, switch_identifier):
         """
         Convert flow statistics data to a string format 
