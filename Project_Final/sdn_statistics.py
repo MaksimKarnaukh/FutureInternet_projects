@@ -172,6 +172,7 @@ class StatsCollector(EventMixin):
         filename = "port_stats_" + dpid_to_str(event.connection.dpid) + ".csv"
         self.save_to_csv(stats_data, filename)
         self.display_port_stats_in_terminal(stats_data)
+        self.display_port_stats_in_terminal([self.get_port_stats_total(stats_data)])
         # TODO: create a way to append to a txt file, together with printing to terminal (which is already done)
 
     def save_to_csv(self, data, filename):
@@ -235,6 +236,21 @@ class StatsCollector(EventMixin):
         headers = list(stats[0].keys()) if stats else []
         # log.info("\n" + tabulate(table, headers=headers))
         # log.info("\n" + table)
+
+    def get_port_stats_total(self, port_stats):
+        """
+        Get total port statistics
+        """
+        total = {}
+        for port in port_stats:
+            for key in port:
+                if key == "port_no":
+                    continue
+                if key not in total:
+                    total[key] = port[key]
+                else:
+                    total[key] += port[key]
+        return total
 
     def port_stats_to_pretty_string(self, port_stats):
         """
