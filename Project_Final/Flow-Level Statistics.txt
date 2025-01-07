@@ -1,0 +1,23 @@
+Flow-Level Statistics
+Nr_active_flows
+Per Flow:
+	Match: { 
+		dl_src (The MAC source address)
+		, nw_src (The IPv4 source address)
+		, dl_dst (The MAC destination address)
+		, tp_src (The TCP/UDP source port)
+		, nw_dst (The IPv4 destination address)
+		, tp_src (The TCP/UDP destination port)
+		, in_port (Port where the flow arrives)
+		, dl_type (The Ethernet frame type, IP or ARP ...)
+		}
+	Since start: 
+		Bytes
+		Duration
+		Nr_Packets
+	Since last update:
+		Bytes
+		Avg_bytes_per_minute
+		Duration
+		Nr_Packets
+		Avg_Packets_per_minute

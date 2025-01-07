@@ -5,6 +5,10 @@ openflow or different tools (e.g. sflow). The idea here would be to implement a 
 environment (using any controller) where you show what statistics you can get with any tool
 (openflow, sflow or more).
 """
+"""Collected statistics
+
+"""
+
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
@@ -14,11 +18,9 @@ from pox.lib.util import dpid_to_str
 from pox.lib.util import dpidToStr
 from pox.lib.recoco import Timer
 from pox.openflow.of_json import *
-
-import csv
 import os
 from datetime import datetime
-
+import csv
 # import matplotlib.pyplot as plt
 
 log = core.getLogger()
@@ -28,6 +30,11 @@ class StatsCollector(EventMixin):
     def __init__(self, timer_interval=5):
         self.listenTo(core.openflow)
         self.stats = {} # store statistics per switch
+        # remove txt files that start with flow_stats
+        for file in os.listdir():
+            if file.startswith('flow_stats') and file.endswith('.txt'):
+                os.remove(file)
+
 
         self.interval = timer_interval # timer interval in seconds
         Timer(self.interval, self._timer_func, recurring=True) # library timer function
@@ -58,17 +65,89 @@ class StatsCollector(EventMixin):
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
         connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request())) # request port stats
 
+
+    # def _handle_StatsReply(self, event):
+    #     log.info(f"StatsReply from switch {dpid_to_str(event.connection.dpid)}")
+    #     stats_data = []
+    #     for flow in event.stats:
+    #         stats_data.append({
+    #             'Match': str(flow.match),
+    #             'Packet Count': flow.packet_count,
+    #             'Byte Count': flow.byte_count,
+    #             'Duration': flow.duration_sec
+    #         })
+    #     self.stats[event.connection.dpid] = stats_data
+    #     self.save_to_csv(stats_data, f"stats_{dpid_to_str(event.connection.dpid)}.csv")
+    #     self.display_stats(stats_data)
+    def append_to_txt(self, data, filename, diff, switch_identifier):
+        with open(filename, 'a') as f:
+            nr_of_active_flows = len(data)
+            f.write(f"Flow-Level Statistics at Switch" + switch_identifier + "\n")
+            f.write(f"Nr of active flows: {nr_of_active_flows}\n")
+
+            for flow in data:
+                matching = flow["match"]
+                tp_src = matching['tp_src'] if 'tp_src' in matching else None
+                tp_dst = matching['tp_dst'] if 'tp_dst' in matching else None
+                duration = flow['duration_sec'] + flow['duration_nsec'] / 1e9 # Convert to seconds
+
+                f.write(f"Flow-Level Statistics at Switch" + switch_identifier + "\n") 
+                f.write(f"Nr of active flows: {len(data)}\n")
+                f.write(f"Flow matching source: {matching['nw_src']},{matching['dl_src']}")
+                if tp_src:
+                    f.write(f"source port: {tp_src}")
+                f.write(f"and destination: {matching['nw_dst']},{matching['dl_dst']}") 
+                if tp_dst:
+                    f.write(f"destination port: {tp_dst}")
+                f.write(f"Statistics since start:\n")
+                f.write(f"\tNumber of packets: {flow['packet_count']}, averaging {flow['packet_count']/duration} per second\n")
+                f.write(f"\tNumber of bytes: {flow['byte_count']}, averaging {flow['byte_count']/duration} per second\n")
+                f.write(f"\tDuration: {duration} seconds\n")
+                if "diff" in flow:
+                    f.write(f"Statistics since last request:\n")
+                    for diff in flow["diff"]:
+                        f.write(f"\tNumber of packets: {diff['packet_count']}, averaging {diff['packet_count']/duration} per second\n")
+                        f.write(f"\tNumber of bytes: {diff['byte_count']}, averaging {diff['byte_count']/duration} per second\n")
+                        f.write(f"\tDuration: {diff['duration']} seconds\n")
+                f.write("\n")
+            print(f"Flow-Level Statistics at Switch {switch_identifier} written to {filename}")
+    def calculate_diff(self, old_stats, new_stats):
+        """
+            Calculate the difference between two sets of flow statistics (old and new) and return the difference. Only if the flow is present in the new stats and old stats
+        """
+        for new_flow in new_stats:
+            diff = []
+            for old_flow in old_stats:
+                if new_flow['match'] == old_flow['match']:
+                    diff.append({
+                        'match': new_flow['match'],
+                        'packet_count': new_flow['packet_count'] - old_flow['packet_count'],
+                        'byte_count': new_flow['byte_count'] - old_flow['byte_count'],
+                        'duration_sec': new_flow['duration_sec'] - old_flow['duration_sec'],
+                        'duration_nsec': new_flow['duration_nsec'] - old_flow['duration_nsec']
+                    })
+                    break
+            
+            # Append diff to new_flow if diff is not empty
+            if diff:
+                new_flow['diff'] = diff 
+        return diff
     def _handle_FlowStatsReceived(self, event):
         """
         Handles flow stats received event
         """
+        switch_identifier = dpid_to_str(event.connection.dpid)
         log.info("FlowStats received from %s", dpid_to_str(event.connection.dpid))
+
         stats_data = flow_stats_to_list(event.stats)
+        if event.connection.dpid in self.stats and 'flow_stats' in self.stats[event.connection.dpid]:
+            diff = self.calculate_diff(new_stats=stats_data, old_stats=self.stats[event.connection.dpid]['flow_stats'])
         if event.connection.dpid not in self.stats: # event.connection.dpid is the datapath id of the switch
             self.stats[event.connection.dpid] = {}
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
-        filename = "flow_stats_" + dpid_to_str(event.connection.dpid) + ".csv"
-        self.save_to_csv(stats_data, filename)
+        filename = "flow_stats_" + dpid_to_str(event.connection.dpid)
+        self.append_to_txt(stats_data, filename+".txt", diff, switch_identifier)
+        self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
         # TODO: create a way to append to a txt file, together with printing to terminal (which is already done)
 
