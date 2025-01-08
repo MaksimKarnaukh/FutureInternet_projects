@@ -66,91 +66,15 @@ class StatsCollector(EventMixin):
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
         connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request())) # request port stats
 
-    def append_to_txt(self, data, filename, switch_identifier):
-        """
-        Append flow statistics data to a txt file
-        """
-        with open(filename, 'a') as f:
-            str_stream = self.flow_stats_string(data, switch_identifier)
-            f.write(str_stream)
-            log.debug("Flow-Level Statistics at Switch " + switch_identifier + " written to " + filename)
-            f.write("="*100 + "\n")
-
-    def flow_stats_string(self, data, switch_identifier):
-        """
-        Convert flow statistics data to a string format 
-        """
-        str_stream = ""
-        nr_of_active_flows = len(data)
-        #  get current timestamp
-        timestamp_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        # append to string stream
-        str_stream += "Flow-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now) + "\n"
-        # append number of active flows
-        str_stream +="Nr of active flows: " + str(nr_of_active_flows) + "\n\n"
-        # sort flows by byte rate, highest first
-        data.sort(key=lambda x: x['average_byte_rate'], reverse=True)
-        # iterate over each flow
-        for flow in data:
-            # get matching fields
-            matching = flow["match"]
-            tp_src = matching['tp_src'] if 'tp_src' in matching else None
-            tp_dst = matching['tp_dst'] if 'tp_dst' in matching else None
-            # calculate duration
-            duration = round(flow['duration_sec'] + flow['duration_nsec'] / 1e9, 3)
-            # get ip protocol
-            ip_protocol = matching['dl_type'] if 'dl_type' in matching else None
-
-            # append to string stream
-            str_stream +="Flow matching (protocol: " + ip_protocol + ") source: " + str(matching['nw_src']) + ", " + str(matching['dl_src'])
-            if tp_src:
-                str_stream +=", port: " + str(tp_src)
-            str_stream +=" and destination: " + str(matching['nw_dst']) + ", " + str(matching['dl_dst'])
-            if tp_dst:
-                str_stream +=", port: " + str(tp_dst)
-            # statistics since start of flow
-            str_stream +="\nStatistics since start:\n"
-            str_stream +="\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(round(flow['packet_count']/duration, 3)) + " per second\n"
-            str_stream +="\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(round(flow['byte_count']/duration, 3)) + " per second\n"
-            str_stream +="\tDuration: " + str(duration) + " seconds\n"
-            # statistics since last request
-            if "diff" in flow:
-                str_stream +="Statistics since last request:\n"
-                diff = flow["diff"]
-                diff_duration = round(diff['duration_sec'] + diff['duration_nsec'] / 1e9, 3)
-                str_stream +="\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['average_packet_rate'], 3)) + " per second\n"
-                str_stream +="\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['average_byte_rate'], 3)) + " per second\n"
-                str_stream +="\tDuration: " + str(diff_duration) + " seconds\n"
-            str_stream +="\n"
-        return str_stream
-
-    def calculate_diff(self, old_stats, new_stats):
-        """
-        Calculate the difference between two sets of flow statistics (old and new) and return the difference. Only if the flow is present in the new stats and old stats
-        """
-        for new_flow in new_stats:
-            diff = {}
-            for old_flow in old_stats:
-                if new_flow['match'] == old_flow['match']:
-                    diff = {
-                        'match': new_flow['match'],
-                        'packet_count': new_flow['packet_count'] - old_flow['packet_count'],
-                        'byte_count': new_flow['byte_count'] - old_flow['byte_count'],
-                        'duration_sec': new_flow['duration_sec'] - old_flow['duration_sec'],
-                        'duration_nsec': new_flow['duration_nsec'] - old_flow['duration_nsec']
-                    }
-                    total_duration = diff['duration_sec'] + diff['duration_nsec'] / 1e9
-                    average_packet_rate = diff['packet_count'] / total_duration
-                    average_byte_rate = diff['byte_count'] / total_duration
-                    diff['average_packet_rate'] = average_packet_rate
-                    diff['average_byte_rate'] = average_byte_rate
-                    break
-            
-            # Append diff to new_flow if diff is not empty
-            if diff:
-                new_flow['diff'] = diff 
-
-
+        connection.send(of.ofp_stats_request(body=of.ofp_aggregate_stats_request())) # request aggregate stats
+        connection.send(of.ofp_stats_request(body=of.ofp_table_stats_request())) # request table stats
+        connection.send(of.ofp_stats_request(body=of.ofp_queue_stats_request())) # request queue stats
+        connection.send(of.ofp_stats_request(body=of.ofp_group_stats_request())) # request group stats
+        connection.send(of.ofp_stats_request(body=of.ofp_group_desc_stats_request())) # request group desc stats
+        connection.send(of.ofp_stats_request(body=of.ofp_group_features_stats_request())) # request group features stats
+        connection.send(of.ofp_stats_request(body=of.ofp_meter_stats_request())) # request meter stats
+        connection.send(of.ofp_stats_request(body=of.ofp_meter_config_stats_request())) # request meter config stats
+        connection.send(of.ofp_stats_request(body=of.ofp_meter_features_stats_request())) # request meter features stats
 
     def _handle_FlowStatsReceived(self, event):
         """
@@ -190,6 +114,96 @@ class StatsCollector(EventMixin):
         self.display_port_stats_in_terminal(stats_data)
         self.display_port_stats_in_terminal([self.get_port_stats_total(stats_data)])
         # TODO: create a way to append to a txt file, together with printing to terminal (which is already done)
+
+
+    def append_to_txt(self, data, filename, switch_identifier):
+        """
+        Append flow statistics data to a txt file
+        """
+        with open(filename, 'a') as f:
+            str_stream = self.flow_stats_string(data, switch_identifier)
+            f.write(str_stream)
+            log.debug("Flow-Level Statistics at Switch " + switch_identifier + " written to " + filename)
+            f.write("=" * 100 + "\n")
+
+    def flow_stats_string(self, data, switch_identifier):
+        """
+        Convert flow statistics data to a string format
+        """
+        str_stream = ""
+        nr_of_active_flows = len(data)
+        #  get current timestamp
+        timestamp_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # append to string stream
+        str_stream += "Flow-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now) + "\n"
+        # append number of active flows
+        str_stream += "Nr of active flows: " + str(nr_of_active_flows) + "\n\n"
+        # sort flows by byte rate, highest first
+        data.sort(key=lambda x: x['average_byte_rate'], reverse=True)
+        # iterate over each flow
+        for flow in data:
+            # get matching fields
+            matching = flow["match"]
+            tp_src = matching['tp_src'] if 'tp_src' in matching else None
+            tp_dst = matching['tp_dst'] if 'tp_dst' in matching else None
+            # calculate duration
+            duration = round(flow['duration_sec'] + flow['duration_nsec'] / 1e9, 3)
+            # get ip protocol
+            ip_protocol = matching['dl_type'] if 'dl_type' in matching else None
+
+            # append to string stream
+            str_stream += "Flow matching (protocol: " + ip_protocol + ") source: " + str(
+                matching['nw_src']) + ", " + str(matching['dl_src'])
+            if tp_src:
+                str_stream += ", port: " + str(tp_src)
+            str_stream += " and destination: " + str(matching['nw_dst']) + ", " + str(matching['dl_dst'])
+            if tp_dst:
+                str_stream += ", port: " + str(tp_dst)
+            # statistics since start of flow
+            str_stream += "\nStatistics since start:\n"
+            str_stream += "\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(
+                round(flow['packet_count'] / duration, 3)) + " per second\n"
+            str_stream += "\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(
+                round(flow['byte_count'] / duration, 3)) + " per second\n"
+            str_stream += "\tDuration: " + str(duration) + " seconds\n"
+            # statistics since last request
+            if "diff" in flow:
+                str_stream += "Statistics since last request:\n"
+                diff = flow["diff"]
+                diff_duration = round(diff['duration_sec'] + diff['duration_nsec'] / 1e9, 3)
+                str_stream += "\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(
+                    round(diff['average_packet_rate'], 3)) + " per second\n"
+                str_stream += "\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(
+                    round(diff['average_byte_rate'], 3)) + " per second\n"
+                str_stream += "\tDuration: " + str(diff_duration) + " seconds\n"
+            str_stream += "\n"
+        return str_stream
+
+    def calculate_diff(self, old_stats, new_stats):
+        """
+        Calculate the difference between two sets of flow statistics (old and new) and return the difference. Only if the flow is present in the new stats and old stats
+        """
+        for new_flow in new_stats:
+            diff = {}
+            for old_flow in old_stats:
+                if new_flow['match'] == old_flow['match']:
+                    diff = {
+                        'match': new_flow['match'],
+                        'packet_count': new_flow['packet_count'] - old_flow['packet_count'],
+                        'byte_count': new_flow['byte_count'] - old_flow['byte_count'],
+                        'duration_sec': new_flow['duration_sec'] - old_flow['duration_sec'],
+                        'duration_nsec': new_flow['duration_nsec'] - old_flow['duration_nsec']
+                    }
+                    total_duration = diff['duration_sec'] + diff['duration_nsec'] / 1e9
+                    average_packet_rate = diff['packet_count'] / total_duration
+                    average_byte_rate = diff['byte_count'] / total_duration
+                    diff['average_packet_rate'] = average_packet_rate
+                    diff['average_byte_rate'] = average_byte_rate
+                    break
+
+            # Append diff to new_flow if diff is not empty
+            if diff:
+                new_flow['diff'] = diff
 
     def save_to_csv(self, data, filename):
         """
