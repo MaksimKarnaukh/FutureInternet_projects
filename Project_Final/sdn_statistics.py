@@ -90,8 +90,6 @@ class StatsCollector(EventMixin):
         if event.connection.dpid not in self.stats: # event.connection.dpid is the datapath id of the switch
             self.stats[event.connection.dpid] = {}
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
-        self.update_active_talkers(stats_data, switch_identifier)
-
 
         # Use the updated stats
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid)
