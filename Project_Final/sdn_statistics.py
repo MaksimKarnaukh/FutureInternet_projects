@@ -80,6 +80,8 @@ class StatsCollector(EventMixin):
         """
         Convert flow statistics data to a string format 
         """
+        flow_stats = data['flow_stats']
+        other_stats = data['other_stats']
         str_stream = ""
         nr_of_active_flows = len(data)
         #  get current timestamp
@@ -87,9 +89,10 @@ class StatsCollector(EventMixin):
         # append to string stream
         str_stream += "Flow-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now) + "\n"
         # append number of active flows
-        str_stream +="Nr of active flows: " + str(nr_of_active_flows) + "\n\n"
+        str_stream +="Nr of active flows: " + str(nr_of_active_flows) + " of which " + other_stats["nr_added_flows"] + " newly added flows and " + other_stats["nr_removed_flows"] + " removed flows " +  "\n\n"
         # sort flows by byte rate, highest first
         data.sort(key=lambda x: x['average_byte_rate'], reverse=True)
+        str_stream += "Statistics for each flow (sorted by byte rate):\n"
         # iterate over each flow
         for flow in data:
             # get matching fields
@@ -102,25 +105,25 @@ class StatsCollector(EventMixin):
             ip_protocol = matching['dl_type'] if 'dl_type' in matching else None
 
             # append to string stream
-            str_stream +="Flow matching (protocol: " + ip_protocol + ") source: " + str(matching['nw_src']) + ", " + str(matching['dl_src'])
+            str_stream +="\tFlow matching (protocol: " + ip_protocol + ") source: " + str(matching['nw_src']) + ", " + str(matching['dl_src'])
             if tp_src:
                 str_stream +=", port: " + str(tp_src)
             str_stream +=" and destination: " + str(matching['nw_dst']) + ", " + str(matching['dl_dst'])
             if tp_dst:
                 str_stream +=", port: " + str(tp_dst)
             # statistics since start of flow
-            str_stream +="\nStatistics since start:\n"
-            str_stream +="\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(round(flow['packet_count']/duration, 3)) + " per second\n"
-            str_stream +="\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(round(flow['byte_count']/duration, 3)) + " per second\n"
-            str_stream +="\tDuration: " + str(duration) + " seconds\n"
+            str_stream +="\n\tStatistics since start:\n"
+            str_stream +="\t\tNumber of packets: " + str(flow['packet_count']) + ", averaging " + str(round(flow['packet_count']/duration, 3)) + " per second\n"
+            str_stream +="\t\tNumber of bytes: " + str(flow['byte_count']) + ", averaging " + str(round(flow['byte_count']/duration, 3)) + " per second\n"
+            str_stream +="\t\tDuration: " + str(duration) + " seconds\n"
             # statistics since last request
             if "diff" in flow:
-                str_stream +="Statistics since last request:\n"
+                str_stream +="\tStatistics since last request:\n"
                 diff = flow["diff"]
                 diff_duration = round(diff['duration_sec'] + diff['duration_nsec'] / 1e9, 3)
-                str_stream +="\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['average_packet_rate'], 3)) + " per second\n"
-                str_stream +="\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['average_byte_rate'], 3)) + " per second\n"
-                str_stream +="\tDuration: " + str(diff_duration) + " seconds\n"
+                str_stream +="\t\tNumber of packets: " + str(diff['packet_count']) + ", averaging " + str(round(diff['average_packet_rate'], 3)) + " per second\n"
+                str_stream +="\t\tNumber of bytes: " + str(diff['byte_count']) + ", averaging " + str(round(diff['average_byte_rate'], 3)) + " per second\n"
+                str_stream +="\t\tDuration: " + str(diff_duration) + " seconds\n"
             str_stream +="\n"
         return str_stream
 
@@ -128,10 +131,15 @@ class StatsCollector(EventMixin):
         """
         Calculate the difference between two sets of flow statistics (old and new) and return the difference. Only if the flow is present in the new stats and old stats
         """
+        nr_new_flows = len(new_stats)
+        nr_old_flows = len(old_stats)
+
         for new_flow in new_stats:
             diff = {}
+            flows_matched = 0
             for old_flow in old_stats:
                 if new_flow['match'] == old_flow['match']:
+                    flows_matched += 1
                     diff = {
                         'match': new_flow['match'],
                         'packet_count': new_flow['packet_count'] - old_flow['packet_count'],
@@ -145,11 +153,15 @@ class StatsCollector(EventMixin):
                     diff['average_packet_rate'] = average_packet_rate
                     diff['average_byte_rate'] = average_byte_rate
                     break
-            
+                
+
             # Append diff to new_flow if diff is not empty
             if diff:
                 new_flow['diff'] = diff 
-
+        nr_added_flows = nr_new_flows - flows_matched
+        nr_removed_flows = nr_old_flows - flows_matched 
+        return  nr_added_flows, nr_removed_flows
+        
 
 
     def _handle_FlowStatsReceived(self, event):
@@ -162,7 +174,8 @@ class StatsCollector(EventMixin):
 
         stats_data = flow_stats_to_list(event.stats)
         if event.connection.dpid in self.stats and 'flow_stats' in self.stats[event.connection.dpid]:
-            diff = self.calculate_diff(new_stats=stats_data, old_stats=self.stats[event.connection.dpid]['flow_stats'])
+            nr_added_flows, nr_removed_flows = self.calculate_diff(new_stats=stats_data, old_stats=self.stats[event.connection.dpid]['flow_stats'])
+            self.stats[event.connection.dpid]['other_stats'] = { 'nr_added_flows': nr_added_flows, 'nr_removed_flows': nr_removed_flows }
         if event.connection.dpid not in self.stats: # event.connection.dpid is the datapath id of the switch
             self.stats[event.connection.dpid] = {}
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
@@ -172,7 +185,7 @@ class StatsCollector(EventMixin):
         # Use the updated stats
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid)
 
-        self.append_to_txt(stats_data, filename+".txt", switch_identifier)
+        self.append_to_txt(self.stats[event.connection.dpid], filename+".txt", switch_identifier)
         self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
 
