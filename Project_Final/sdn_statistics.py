@@ -76,14 +76,6 @@ class StatsCollector(EventMixin):
         # connection.send(of.ofp_stats_request(body=of.ofp_meter_config_stats_request())) # request meter config stats
         # connection.send(of.ofp_stats_request(body=of.ofp_meter_features_stats_request())) # request meter features stats
 
-    def calculate_averages(self, stats):
-        for flow in stats:
-            # calculate average packet rate and average byte rate
-            duration = flow["duration_sec"] + flow["duration_nsec"] / 1e9
-            average_packet_rate = flow["packet_count"] / duration
-            average_byte_rate = flow["byte_count"] / duration
-            flow['average_packet_rate'] = average_packet_rate
-            flow['average_byte_rate'] = average_byte_rate
     def _handle_FlowStatsReceived(self, event):
         """
         Handles flow stats received event
@@ -111,6 +103,29 @@ class StatsCollector(EventMixin):
         self.append_to_txt(self.stats[event.connection.dpid], filename+".txt", switch_identifier)
         self.save_to_csv(stats_data, filename+".csv")
         self.display_flow_stats_in_terminal(stats_data)
+
+    def _handle_PortStatsReceived(self, event):
+        """
+        Handles port stats received event
+        """
+        log.info("PortStats received from %s", dpid_to_str(event.connection.dpid))
+        stats_data = flow_stats_to_list(event.stats)
+        if event.connection.dpid not in self.stats:  # event.connection.dpid is the datapath id of the switch
+            self.stats[event.connection.dpid] = {}
+        self.stats[event.connection.dpid]['port_stats'] = stats_data
+        filename = "port_stats_" + dpid_to_str(event.connection.dpid) + ".csv"
+        self.save_to_csv(stats_data, filename)
+        self.display_port_stats_in_terminal(stats_data)
+        # TODO: create a way to append to a txt file, together with printing to terminal (which is already done)
+
+    def calculate_averages(self, stats):
+        for flow in stats:
+            # calculate average packet rate and average byte rate
+            duration = flow["duration_sec"] + flow["duration_nsec"] / 1e9
+            average_packet_rate = flow["packet_count"] / duration
+            average_byte_rate = flow["byte_count"] / duration
+            flow['average_packet_rate'] = average_packet_rate
+            flow['average_byte_rate'] = average_byte_rate
 
     def append_to_txt(self, data, filename, switch_identifier):
         """
