@@ -12,8 +12,8 @@ environment (using any controller) where you show what statistics you can get wi
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
-from pox.lib.revent import *
 
+from pox.lib.revent import *
 from pox.lib.util import dpid_to_str
 from pox.lib.util import dpidToStr
 from pox.lib.recoco import Timer
@@ -28,12 +28,13 @@ class StatsCollector(EventMixin):
     def __init__(self, timer_interval=5):
         self.listenTo(core.openflow)
         self.stats = {} # store statistics per switch
+        self.paths = {} # store paths per flow
         # remove txt files that start with flow_stats
         for file in os.listdir():
-            if file.startswith('flow_stats') and file.endswith('.txt'):
+            if file.startswith('flow_stats'):
                 os.remove(file)
-        # active_talkers: dict switch -> bytes
-        self.active_talkers = {'Network': []}
+            if file.startswith('port_stats'):
+                os.remove(file)
 
         self.interval = timer_interval # timer interval in seconds
         Timer(self.interval, self._timer_func, recurring=True) # library timer function
@@ -60,14 +61,15 @@ class StatsCollector(EventMixin):
         """
         dpid = dpidToStr(connection.dpid) # datapath id of the switch
         log.debug("Requesting stats from switch %s", dpid)
+
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
         connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request())) # request port stats
 
         connection.send(of.ofp_stats_request(
             body=of.ofp_aggregate_stats_request(
-                match=of.ofp_match(),  # Match criteria (empty = match all flows)
-                table_id=0xff,  # Table ID (0xff = all tables)
-                out_port=of.OFPP_NONE  # Output port (OFPP_NONE = no specific port)
+                match=of.ofp_match(), # match criteria (empty = match all flows)
+                table_id=0xff, # table ID (0xff = all tables)
+                out_port=of.OFPP_NONE # output port (OFPP_NONE = no specific port)
             )
         )) # request aggregate stats
         connection.send(of.ofp_stats_request(body=of.ofp_table_stats_request())) # request table stats
@@ -96,6 +98,11 @@ class StatsCollector(EventMixin):
         # Use the updated stats
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid) + ".txt"
         self.write_stats_to_output(self.stats[event.connection.dpid], filename, switch_identifier)
+
+        # Update paths and traffic
+        self.update_paths(stats_data, switch_identifier)
+        # Log the paths and their traffic statistics
+        self.log_paths()
 
     def _handle_PortStatsReceived(self, event):
         """
@@ -137,6 +144,7 @@ class StatsCollector(EventMixin):
         """
         pass
 
+    ### Helper functions ###
 
     def calculate_averages(self, stats):
         for flow in stats:
@@ -161,7 +169,7 @@ class StatsCollector(EventMixin):
                 if stats_type == 'Flow':
                     str_stream = self.build_flow_stats_string(data, switch_identifier)
                 elif stats_type == 'Port':
-                    str_stream = self.build_port_stats_string(data)
+                    str_stream = self.build_port_stats_string(data, switch_identifier)
                 else:
                     log.error("Invalid stats type")
                 f.write(str_stream)
@@ -242,7 +250,7 @@ class StatsCollector(EventMixin):
         except Exception as e:
             log.error("Error building flow stats string: %s", e)
 
-    def build_port_stats_string(self, port_stats):
+    def build_port_stats_string(self, port_stats, switch_identifier):
         """
         Convert port stats to a pretty string
         """
@@ -258,7 +266,16 @@ class StatsCollector(EventMixin):
                              headers}
 
             header_row = " | ".join("{:<{width}}".format(header, width=column_widths[header]) for header in headers)
-            str_stream += "=" * len(header_row) + "\n"
+
+            eq_len = len(header_row)
+            str_stream = eq_len * '=' + "\n"
+            Port_Level_str = "Port-Level Statistics for Switch " + switch_identifier + " at " + str(timestamp_now)
+            Port_Level_str_len = len(Port_Level_str)
+            eq_len_port_level = eq_len - Port_Level_str_len
+            str_stream += ('=' * (eq_len_port_level // 2)) + Port_Level_str + (
+                        '=' * (eq_len_port_level // 2 + eq_len_port_level % 2)) + "\n"
+            str_stream += eq_len * '=' + "\n"
+
             str_stream += header_row + "\n"
             str_stream += "-" * len(header_row) + "\n"
 
@@ -267,7 +284,14 @@ class StatsCollector(EventMixin):
                     "{:<{width}}".format(str(port[header]), width=column_widths[header]) for header in headers)
                 str_stream += row + "\n"
 
-            str_stream += "=" * len(header_row) + "\n"
+            str_stream += "-" * len(header_row) + "\n"
+
+            total_port_stats = self.get_port_stats_total(port_stats)
+            row = " | ".join(
+                "{:<{width}}".format(str(total_port_stats[header]), width=column_widths[header]) for header in headers)
+            str_stream += row + "\n"
+
+            str_stream += "=" * len(header_row) + "\n\n"
             return str_stream
 
         except Exception as e:
@@ -320,9 +344,126 @@ class StatsCollector(EventMixin):
                     total[key] = port[key]
                 else:
                     total[key] += port[key]
+        total['port_no'] = "Total"
         return total
+
+    # def reconstruct_paths(self, flow_stats, switch, paths):
+    #     """
+    #     Reconstruct paths incrementally using flow statistics from a single switch.
+    #     Args:
+    #         flow_stats: List of flow stats from the current switch.
+    #         switch: Identifier of the current switch (e.g., "s1").
+    #         paths: Global dictionary of paths being constructed.
+    #                Format: { (src_ip, dst_ip): [list_of_switches] }
+    #     Returns:
+    #         Updated paths with new data from the current switch.
+    #     """
+    #     for flow in flow_stats:
+    #         # Extract source and destination IPs
+    #         src_ip = flow['nw_src']
+    #         dst_ip = flow['nw_dst']
+    #
+    #         # If the path does not exist, initialize it with the current switch
+    #         if (src_ip, dst_ip) not in paths:
+    #             paths[(src_ip, dst_ip)] = [switch]
+    #         # Append the current switch if not already in the path
+    #         elif switch not in paths[(src_ip, dst_ip)]:
+    #             paths[(src_ip, dst_ip)].append(switch)
+    #
+    #     return paths
+    #
+    # def aggregate_traffic(self, flow_stats, paths):
+    #     """
+    #     Aggregate traffic for each path.
+    #     Args:
+    #         flow_stats: A dictionary of flow stats from each switch.
+    #         paths: A dictionary of paths { (src_ip, dst_ip): [list_of_switches] }.
+    #     Returns:
+    #         A dictionary of path traffic { (src_ip, dst_ip): total_bytes }.
+    #     """
+    #     path_traffic = {}
+    #
+    #     for (src_ip, dst_ip), path in paths.items():
+    #         total_bytes = 0
+    #         for switch in path:
+    #             if switch in flow_stats:
+    #                 for flow in flow_stats[switch]:
+    #                     if flow['nw_src'] == src_ip and flow['nw_dst'] == dst_ip:
+    #                         total_bytes += flow['byte_count']
+    #         path_traffic[(src_ip, dst_ip)] = total_bytes
+    #
+    #     return path_traffic
+    #
+    # def get_top_talkers(self, path_traffic, top_n=5):
+    #     """
+    #     Get the top N talkers based on path traffic.
+    #     Args:
+    #         path_traffic: A dictionary of path traffic { (src_ip, dst_ip): total_bytes }.
+    #         top_n: Number of top talkers to return.
+    #     Returns:
+    #         A sorted list of top N talkers [(path, total_bytes)].
+    #     """
+    #     sorted_paths = sorted(path_traffic.items(), key=lambda x: x[1], reverse=True)
+    #     return sorted_paths[:top_n]
+
+    def update_paths(self, flow_stats, switch):
+        """
+        Updates paths based on flow stats from the current switch and tracks traffic.
+        """
+        for flow in flow_stats:
+            # Extract source and destination IPs
+            src_ip = flow['match']['nw_src']
+            dst_ip = flow['match']['nw_dst']
+            protocol = flow['match']['dl_type']
+
+            # Create a unique path identifier
+            path_key = (src_ip, dst_ip, protocol)
+
+            # If the path doesn't exist, initialize it
+            if path_key not in self.paths:
+                self.paths[path_key] = {
+                    'path': [switch],
+                    'total_bytes': [0, 0], # [total_bytes_overall, total_bytes_in_current_active_flow]
+                    'total_packets': [0, 0], # [total_packets_overall, total_packets_in_current_active_flow]
+                    'counting_switch': None
+                }
+
+            if self.paths[path_key]['counting_switch'] is None:
+                self.paths[path_key]['counting_switch'] = switch
+            if self.paths[path_key]['counting_switch'] == switch:
+                # Update traffic statistics
+                if flow['byte_count'] < self.paths[path_key]['total_bytes'][1]:
+                    # update total_bytes_overall and total_packets_overall
+                    self.paths[path_key]['total_bytes'][0] += self.paths[path_key]['total_bytes'][1]
+                    self.paths[path_key]['total_packets'][0] += self.paths[path_key]['total_packets'][1]
+
+                    # A new flow has started
+                    self.paths[path_key]['total_bytes'][1] = flow['byte_count']
+                    self.paths[path_key]['total_packets'][1] = flow['packet_count']
+                else:
+                    self.paths[path_key]['total_bytes'][1] = flow['byte_count']
+                    self.paths[path_key]['total_packets'][1] = flow['packet_count']
+
+                # print the total_bytes as a list
+                log.debug("total_bytes: %s, for path key %s", self.paths[path_key]['total_bytes'], path_key)
+
+            # Add the current switch to the path if not already included
+            if switch not in self.paths[path_key]['path']:
+                self.paths[path_key]['path'].append(switch)
+
+    def log_paths(self):
+        """
+        Logs all paths and their traffic statistics.
+        """
+        log.info("Current Paths and Traffic Statistics:")
+        for (src_ip, dst_ip, protocol), data in self.paths.items():
+            log.info(
+                "Path from %s to %s (protocol %s) via switches %s: Total Bytes = %d, Total Packets = %d",
+                src_ip, dst_ip, protocol, " -> ".join(data['path']), data['total_bytes'][0]+data['total_bytes'][1], data['total_packets'][0]+data['total_packets'][1]
+            )
 
 
 def launch():
+
     core.registerNew(StatsCollector)
 
