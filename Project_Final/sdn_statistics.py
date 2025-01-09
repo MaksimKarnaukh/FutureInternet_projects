@@ -29,7 +29,7 @@ class StatsCollector(EventMixin):
         self.listenTo(core.openflow)
         self.stats = {} # store statistics per switch
         self.paths = {} # store paths per flow
-        # remove txt files that start with flow_stats
+        # remove txt statistics files
         for file in os.listdir():
             if file.startswith('flow_stats'):
                 os.remove(file)
@@ -485,6 +485,5 @@ class StatsCollector(EventMixin):
 
 
 def launch():
-
     core.registerNew(StatsCollector)
 
