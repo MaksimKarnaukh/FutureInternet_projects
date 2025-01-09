@@ -35,6 +35,8 @@ class StatsCollector(EventMixin):
                 os.remove(file)
             if file.startswith('port_stats'):
                 os.remove(file)
+            if file.startswith('top_talkers'):
+                os.remove(file)
 
         self.interval = timer_interval # timer interval in seconds
         Timer(self.interval, self._timer_func, recurring=True) # library timer function
@@ -90,7 +92,7 @@ class StatsCollector(EventMixin):
             nr_added_flows, nr_removed_flows = self.calculate_diff(new_stats=stats_data, old_stats=self.stats[event.connection.dpid]['flow_stats'])
             self.stats[event.connection.dpid]['other_stats'] = { 'nr_added_flows': nr_added_flows, 'nr_removed_flows': nr_removed_flows, 'old_nr_flows': old_nr_flows}
 
-        if event.connection.dpid not in self.stats: # event.connection.dpid is the datapath id of the switch
+        if event.connection.dpid not in self.stats:
             self.stats[event.connection.dpid] = {}
         self.calculate_averages(stats_data)
         self.stats[event.connection.dpid]['flow_stats'] = stats_data
@@ -102,7 +104,8 @@ class StatsCollector(EventMixin):
         # Update paths and traffic
         self.update_paths(stats_data, switch_identifier)
         # Log the paths and their traffic statistics
-        self.log_paths()
+        # self.log_paths()
+        self.write_top_talkers_to_output(self.get_top_talkers(k=20, sort_by="bytes", combine_protocols=True), "top_talkers.txt", sort_by="bytes", k=20)
 
     def _handle_PortStatsReceived(self, event):
         """
@@ -347,65 +350,6 @@ class StatsCollector(EventMixin):
         total['port_no'] = "Total"
         return total
 
-    # def reconstruct_paths(self, flow_stats, switch, paths):
-    #     """
-    #     Reconstruct paths incrementally using flow statistics from a single switch.
-    #     Args:
-    #         flow_stats: List of flow stats from the current switch.
-    #         switch: Identifier of the current switch (e.g., "s1").
-    #         paths: Global dictionary of paths being constructed.
-    #                Format: { (src_ip, dst_ip): [list_of_switches] }
-    #     Returns:
-    #         Updated paths with new data from the current switch.
-    #     """
-    #     for flow in flow_stats:
-    #         # Extract source and destination IPs
-    #         src_ip = flow['nw_src']
-    #         dst_ip = flow['nw_dst']
-    #
-    #         # If the path does not exist, initialize it with the current switch
-    #         if (src_ip, dst_ip) not in paths:
-    #             paths[(src_ip, dst_ip)] = [switch]
-    #         # Append the current switch if not already in the path
-    #         elif switch not in paths[(src_ip, dst_ip)]:
-    #             paths[(src_ip, dst_ip)].append(switch)
-    #
-    #     return paths
-    #
-    # def aggregate_traffic(self, flow_stats, paths):
-    #     """
-    #     Aggregate traffic for each path.
-    #     Args:
-    #         flow_stats: A dictionary of flow stats from each switch.
-    #         paths: A dictionary of paths { (src_ip, dst_ip): [list_of_switches] }.
-    #     Returns:
-    #         A dictionary of path traffic { (src_ip, dst_ip): total_bytes }.
-    #     """
-    #     path_traffic = {}
-    #
-    #     for (src_ip, dst_ip), path in paths.items():
-    #         total_bytes = 0
-    #         for switch in path:
-    #             if switch in flow_stats:
-    #                 for flow in flow_stats[switch]:
-    #                     if flow['nw_src'] == src_ip and flow['nw_dst'] == dst_ip:
-    #                         total_bytes += flow['byte_count']
-    #         path_traffic[(src_ip, dst_ip)] = total_bytes
-    #
-    #     return path_traffic
-    #
-    # def get_top_talkers(self, path_traffic, top_n=5):
-    #     """
-    #     Get the top N talkers based on path traffic.
-    #     Args:
-    #         path_traffic: A dictionary of path traffic { (src_ip, dst_ip): total_bytes }.
-    #         top_n: Number of top talkers to return.
-    #     Returns:
-    #         A sorted list of top N talkers [(path, total_bytes)].
-    #     """
-    #     sorted_paths = sorted(path_traffic.items(), key=lambda x: x[1], reverse=True)
-    #     return sorted_paths[:top_n]
-
     def update_paths(self, flow_stats, switch):
         """
         Updates paths based on flow stats from the current switch and tracks traffic.
@@ -444,12 +388,89 @@ class StatsCollector(EventMixin):
                     self.paths[path_key]['total_bytes'][1] = flow['byte_count']
                     self.paths[path_key]['total_packets'][1] = flow['packet_count']
 
-                # print the total_bytes as a list
-                log.debug("total_bytes: %s, for path key %s", self.paths[path_key]['total_bytes'], path_key)
-
             # Add the current switch to the path if not already included
             if switch not in self.paths[path_key]['path']:
                 self.paths[path_key]['path'].append(switch)
+
+    def get_top_talkers(self, k=20, sort_by="bytes", combine_protocols=False):
+        """
+        Returns the top k talkers sorted by the specified metric (either 'bytes' or 'packets').
+
+        :param k: Number of top talkers to return.
+        :param sort_by: Metric to sort by, either 'bytes' or 'packets'.
+        :return: List of top k talkers with their details.
+        """
+        if sort_by not in ["bytes", "packets"]:
+            raise ValueError("sort_by must be either 'bytes' or 'packets'")
+
+        # Prepare a dictionary to store aggregated values if combining protocols
+        aggregated = {}
+
+        for path_key, data in self.paths.items():
+            src_ip, dst_ip, protocol = path_key
+            if combine_protocols:
+                # Use a tuple of src_ip and dst_ip as the key to combine protocols
+                combined_key = (src_ip, dst_ip)
+            else:
+                # Use the full path_key including protocol to keep them separate
+                combined_key = path_key
+
+            # Initialize aggregation for this key if not already present
+            if combined_key not in aggregated:
+                aggregated[combined_key] = {
+                    "total_bytes": 0,
+                    "total_packets": 0,
+                    "path": set(data['path']),  # Use a set to avoid duplicate switches
+                }
+
+            # Update the total counts
+            aggregated[combined_key]["total_bytes"] += data['total_bytes'][0] + data['total_bytes'][1]
+            aggregated[combined_key]["total_packets"] += data['total_packets'][0] + data['total_packets'][1]
+            aggregated[combined_key]["path"].update(data['path'])
+
+        # Prepare a list of (path_key, total_count) for sorting
+        sorted_metric = []
+        for combined_key, data in aggregated.items():
+            if sort_by == "bytes":
+                total_count = data["total_bytes"]
+            else:  # sort_by == "packets"
+                total_count = data["total_packets"]
+            sorted_metric.append((combined_key, total_count, data))
+
+        # Sort by the metric in descending order
+        sorted_metric = sorted(sorted_metric, key=lambda x: x[1], reverse=True)
+
+        # Extract the top k entries
+        top_talkers = sorted_metric[:k]
+
+        # Format the output
+        result = []
+        for combined_key, total_count, data in top_talkers:
+            if combine_protocols:
+                src_ip, dst_ip = combined_key
+                protocol = "ALL"
+            else:
+                src_ip, dst_ip, protocol = combined_key
+            result.append({
+                "source": src_ip,
+                "destination": dst_ip,
+                "protocol": protocol,
+                "path": list(data["path"]),
+                "bytes": data["total_bytes"],
+                "packets": data["total_packets"],
+            })
+
+        return result
+
+    def write_top_talkers_to_output(self, top_talkers, filename, sort_by="bytes", k=20):
+        """
+        Write the top talkers to a file.
+        """
+        with open(filename, 'w') as f:
+            f.write("Top %d Talkers (sorted by %s):\n" % (k, sort_by))
+            for entry in top_talkers:
+                f.write("Source: %s, Destination: %s, Protocol: %s, Path: %s: Total Bytes: %d, Total Packets: %d\n" %
+                        (entry['source'], entry['destination'], entry['protocol'], ' -> '.join(entry['path']), entry['bytes'], entry['packets']))
 
     def log_paths(self):
         """
