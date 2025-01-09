@@ -53,7 +53,7 @@ class StatsCollector(EventMixin):
         """
         Sends flow/port stats request to all connected switches
         """
-        for connection in core.openflow._connections.values():
+        for connection in core.openflow._connections.values(): # iterate over all connected switches
             self.request_stats(connection)
         log.debug("Sent %i flow/port stats request(s)", len(core.openflow._connections))
 
@@ -61,7 +61,7 @@ class StatsCollector(EventMixin):
         """
         Sends flow/port stats request to the switch (= connection)
         """
-        dpid = dpidToStr(connection.dpid) # datapath id of the switch
+        dpid = dpidToStr(connection.dpid)
         log.debug("Requesting stats from switch %s", dpid)
 
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
