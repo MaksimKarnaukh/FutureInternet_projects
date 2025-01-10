@@ -134,18 +134,19 @@ class StatsCollector(EventMixin):
         self.stats[event.connection.dpid]['aggregate_stats'] = stats_data
         filename = "aggregate_stats_" + switch_identifier + ".txt"
         log.debug("Aggregate stats: \n%s", stats_data)
+        # this whole function doesn't get triggered, maybe version issue?
 
     def _handle_TableStatsReceived(self, event):
         """
         Handles table stats received event
         """
-        pass
+        pass # nothing interesting for us here
 
     def _handle_QueueStatsReceived(self, event):
         """
         Handles queue stats received event
         """
-        pass
+        pass # nothing interesting for us here
 
     ### Helper functions ###
 
