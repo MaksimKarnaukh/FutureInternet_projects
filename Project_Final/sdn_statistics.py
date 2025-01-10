@@ -21,12 +21,15 @@ from datetime import datetime
 log = core.getLogger()
 
 class StatsCollector(EventMixin):
+    """
+    Class that handles collecting flow and port statistics from switches and writing them to a file.
+    """
 
     def __init__(self, timer_interval=5):
         self.listenTo(core.openflow)
         self.stats = {} # store statistics per switch
         self.paths = {} # store paths per flow
-        # remove txt statistics files
+        # remove txt statistics files from previous runs
         for file in os.listdir():
             if file.startswith('flow_stats'):
                 os.remove(file)
@@ -64,6 +67,8 @@ class StatsCollector(EventMixin):
         connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request())) # request flow stats
         connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request())) # request port stats
 
+        # below are some other stats that can be requested, but we are not using them in this project
+
         connection.send(of.ofp_stats_request(
             body=of.ofp_aggregate_stats_request(
                 match=of.ofp_match(), # match criteria (empty = match all flows)
@@ -78,7 +83,6 @@ class StatsCollector(EventMixin):
         """
         Handles flow stats received event
         """
-        # Update received flow stats
         switch_identifier = dpid_to_str(event.connection.dpid)
         log.info("FlowStats received from %s", switch_identifier)
 
@@ -98,10 +102,11 @@ class StatsCollector(EventMixin):
         filename = "flow_stats_" + dpid_to_str(event.connection.dpid) + ".txt"
         self.write_stats_to_output(self.stats[event.connection.dpid], filename, switch_identifier)
 
-        # Update paths and traffic
+        # Update paths and traffic for top talkers
         self.update_paths(stats_data, switch_identifier)
         # Log the paths and their traffic statistics
-        # self.log_paths()
+        # self.log_paths() # uncomment to log paths in terminal
+        # Write the top talkers to a file
         self.write_top_talkers_to_output(self.get_top_talkers(k=20, sort_by="bytes", combine_protocols=True), "top_talkers.txt", sort_by="bytes", k=20)
 
     def _handle_PortStatsReceived(self, event):
@@ -158,7 +163,8 @@ class StatsCollector(EventMixin):
 
     def write_stats_to_output(self, data, filename, switch_identifier, stats_type='Flow'):
         """
-        Append flow statistics data to a txt file
+        Append flow statistics data to a txt file.
+        If no filename is provided, the data will be logged to the console.
         """
         try:
             if not filename:
@@ -353,15 +359,13 @@ class StatsCollector(EventMixin):
         Updates paths based on flow stats from the current switch and tracks traffic.
         """
         for flow in flow_stats:
-            # Extract source and destination IPs
             src_ip = flow['match']['nw_src']
             dst_ip = flow['match']['nw_dst']
             protocol = flow['match']['dl_type']
 
-            # Create a unique path identifier
-            path_key = (src_ip, dst_ip, protocol)
+            path_key = (src_ip, dst_ip, protocol) # unique path identifier
 
-            # If the path doesn't exist, initialize it
+            # if path doesn't exist, we need to initialize it
             if path_key not in self.paths:
                 self.paths[path_key] = {
                     'path': [switch],
@@ -373,20 +377,20 @@ class StatsCollector(EventMixin):
             if self.paths[path_key]['counting_switch'] is None:
                 self.paths[path_key]['counting_switch'] = switch
             if self.paths[path_key]['counting_switch'] == switch:
-                # Update traffic statistics
+                # update traffic statistics
                 if flow['byte_count'] < self.paths[path_key]['total_bytes'][1]:
                     # update total_bytes_overall and total_packets_overall
                     self.paths[path_key]['total_bytes'][0] += self.paths[path_key]['total_bytes'][1]
                     self.paths[path_key]['total_packets'][0] += self.paths[path_key]['total_packets'][1]
 
-                    # A new flow has started
+                    # a new flow has started, so we equal instead of adding
                     self.paths[path_key]['total_bytes'][1] = flow['byte_count']
                     self.paths[path_key]['total_packets'][1] = flow['packet_count']
                 else:
                     self.paths[path_key]['total_bytes'][1] = flow['byte_count']
                     self.paths[path_key]['total_packets'][1] = flow['packet_count']
 
-            # Add the current switch to the path if not already included
+            # add the current switch to the path if not already included
             if switch not in self.paths[path_key]['path']:
                 self.paths[path_key]['path'].append(switch)
 
@@ -398,19 +402,16 @@ class StatsCollector(EventMixin):
         if sort_by not in ["bytes", "packets"]:
             raise ValueError("sort_by must be either 'bytes' or 'packets'")
 
-
         aggregated = {} # dictionary to store aggregated values if combining protocols
 
         for path_key, data in self.paths.items():
             src_ip, dst_ip, protocol = path_key
             if combine_protocols:
-                # Use a tuple of src_ip and dst_ip as the key to combine protocols
                 combined_key = (src_ip, dst_ip)
             else:
-                # Use the full path_key including protocol to keep them separate
+                # full path_key including protocol if not combining protocols
                 combined_key = path_key
 
-            # Initialize aggregation for this key if not already present
             if combined_key not in aggregated:
                 aggregated[combined_key] = {
                     "total_bytes": 0,
@@ -418,12 +419,11 @@ class StatsCollector(EventMixin):
                     "path": set(data['path']),  # Use a set to avoid duplicate switches
                 }
 
-            # Update the total counts
+            # update total counts
             aggregated[combined_key]["total_bytes"] += data['total_bytes'][0] + data['total_bytes'][1]
             aggregated[combined_key]["total_packets"] += data['total_packets'][0] + data['total_packets'][1]
             aggregated[combined_key]["path"].update(data['path'])
 
-        # Prepare a list of (path_key, total_count) for sorting
         sorted_metric = []
         for combined_key, data in aggregated.items():
             if sort_by == "bytes":
@@ -432,13 +432,10 @@ class StatsCollector(EventMixin):
                 total_count = data["total_packets"]
             sorted_metric.append((combined_key, total_count, data))
 
-        # Sort by the metric in descending order
-        sorted_metric = sorted(sorted_metric, key=lambda x: x[1], reverse=True)
+        sorted_metric = sorted(sorted_metric, key=lambda x: x[1], reverse=True) # sort by total count in descending order
 
-        # Extract the top k entries
         top_talkers = sorted_metric[:k]
 
-        # Format the output
         result = []
         for combined_key, total_count, data in top_talkers:
             if combine_protocols:
