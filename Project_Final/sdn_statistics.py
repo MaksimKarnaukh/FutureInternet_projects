@@ -396,10 +396,7 @@ class StatsCollector(EventMixin):
     def get_top_talkers(self, k=20, sort_by="bytes", combine_protocols=False):
         """
         Returns the top k talkers sorted by the specified metric (either 'bytes' or 'packets').
-
-        :param k: Number of top talkers to return.
-        :param sort_by: Metric to sort by, either 'bytes' or 'packets'.
-        :return: List of top k talkers with their details.
+        If combine_protocols is True, the top talkers will be aggregated across all protocols.
         """
         if sort_by not in ["bytes", "packets"]:
             raise ValueError("sort_by must be either 'bytes' or 'packets'")
