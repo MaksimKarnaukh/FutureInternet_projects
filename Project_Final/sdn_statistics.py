@@ -5,9 +5,6 @@ openflow or different tools (e.g. sflow). The idea here would be to implement a 
 environment (using any controller) where you show what statistics you can get with any tool
 (openflow, sflow or more).
 """
-"""Collected statistics
-
-"""
 
 
 from pox.core import core
@@ -401,8 +398,8 @@ class StatsCollector(EventMixin):
         if sort_by not in ["bytes", "packets"]:
             raise ValueError("sort_by must be either 'bytes' or 'packets'")
 
-        # Prepare a dictionary to store aggregated values if combining protocols
-        aggregated = {}
+
+        aggregated = {} # dictionary to store aggregated values if combining protocols
 
         for path_key, data in self.paths.items():
             src_ip, dst_ip, protocol = path_key
